@@ -98,12 +98,16 @@ static UNUSED void ic_arc(int cx, int cy, int R, double a0, double a1, int t, in
     FillArea(cx + (int)(R * sin(a) + (sin(a) < 0 ? -0.5 : 0.5)) - t / 2, cy - (int)(R * cos(a) + (cos(a) < 0 ? -0.5 : 0.5)) - t / 2, t, t, col);
   }
 }
-/* level 0..3: arcs plens; la resta en offc. slash = ratlla diagonal (apagat). */
-static UNUSED void ic_wifi(int cx, int cy, int r, int level, int onc, int offc, int slash) {
-  int t = r / 6 > 2 ? r / 6 : 2, ox = cx, oy = cy + r * 6 / 10, i;
-  for (i = 0; i < 3; i++) ic_arc(ox, oy, r * (i + 1) * 5 / 10 + r / 5, -48, 48, t, i < level ? onc : offc);
-  { int d = t + 1; FillArea(ox - d / 2, oy - d / 2, d, d, level > 0 || !slash ? onc : offc); }
-  if (slash) { thick(cx - r, cy - r + r / 4, cx + r, cy + r, t, offc); }
+/* Barres de senyal (4, creixents). level 0..4 = barres enceses (color onc), la resta en offc. cross = color d'una petita «x»
+   a dalt a l'esquerra de les barres (-1 = sense x): senyal d'apagat o desconnectat. cx,cy = centre; h = alçada. */
+static UNUSED int ic_signal_w(int h) { int bw = h / 5 > 2 ? h / 5 : 2, gap = bw / 2 > 1 ? bw / 2 : 1; return 4 * bw + 3 * gap; }
+static UNUSED void ic_signal(int cx, int cy, int h, int level, int onc, int offc, int cross) {
+  int bw = h / 5 > 2 ? h / 5 : 2, gap = bw / 2 > 1 ? bw / 2 : 1, x0 = cx - ic_signal_w(h) / 2, y1 = cy + h / 2, i;
+  for (i = 0; i < 4; i++) { int bh = h * (i + 1) / 4; rfill(x0 + i * (bw + gap), y1 - bh, bw, bh, bw / 3, i < level ? onc : offc); }
+  if (cross >= 0) {
+    int xs = h * 4 / 10, t = bw * 3 / 5 > 2 ? bw * 3 / 5 : 2, top = y1 - h;
+    thick(x0, top, x0 + xs, top + xs, t, cross); thick(x0, top + xs, x0 + xs, top, t, cross);
+  }
 }
 static UNUSED void ic_sun(int cx, int cy, int r, int col) {
   int k, t = r / 8 > 2 ? r / 8 : 2;

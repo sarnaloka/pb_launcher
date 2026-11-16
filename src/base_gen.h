@@ -60,12 +60,21 @@ static void si_batt_d(int x, int y, int w, int h, int fg) {
     }
   }
 }
-/* Wi-Fi: connectat = arcs blancs segons el senyal; encès sense connexió = arcs gris clar; apagat = arcs gris fosc i barrats */
-static int si_wifi_w(int h) { (void)h; return ICH * 3 / 2; }
+/* Wi-Fi: barres de senyal i, al costat, el text «WIFI». Connectat: barres segons el senyal. Encès sense connexió o apagat:
+   barres apagades i una petita «x» a dalt a l'esquerra (text en gris clar si és encès i en gris fosc si és apagat). */
+static int wifi_level(void) {                  /* 0 = sense connexió; 1..4 = barres */
+  int q, bars;
+  if (!(QueryNetwork() & NET_WIFIREADY)) return 0;
+  q = GetNetSignalQuality(); bars = q < 0 ? 4 : (q * 4 + 4) / 5;
+  return bars < 1 ? 1 : bars > 4 ? 4 : bars;
+}
+static int si_wifi_w(int h) { (void)h; SetFont(fSmall, WHITE); return ic_signal_w(ICH) + U / 4 + StringWidth("WIFI"); }
 static void si_wifi_d(int x, int y, int w, int h, int fg) {
-  int net = QueryNetwork(), off = !(net & NET_WIFI) && !(net & NET_WIFIREADY), eco = !off && !(net & NET_WIFIREADY), r = ICH * 10 / 17, level = 0;
-  if (!off && !eco) { int q = GetNetSignalQuality(), bars = q < 0 ? 4 : (q * 4 + 4) / 5; if (bars < 1) bars = 1; if (bars > 4) bars = 4; level = (bars * 3 + 3) / 4; }
-  ic_wifi(x + w / 2, y + h / 2 + r / 5, r, level, fg, off ? DGRAY : (eco ? LGRAY : DGRAY), off);
+  int net = QueryNetwork(), off = !(net & NET_WIFI) && !(net & NET_WIFIREADY), lv = wifi_level(), iw = ic_signal_w(ICH);
+  (void)w;
+  ic_signal(x + iw / 2, y + h / 2, ICH, lv, fg, DGRAY, lv ? -1 : fg);
+  SetFont(fSmall, lv ? fg : off ? DGRAY : LGRAY);
+  DrawTextRect(x + iw + U / 4, y, StringWidth("WIFI") + 2, h, "WIFI", ALIGN_LEFT | VALIGN_MIDDLE);
 }
 static int si_net_w(int h) { (void)h; return netAct ? ICH * 12 / 10 : 0; }
 static void si_net_d(int x, int y, int w, int h, int fg) { ic_spinner(x + w / 2, y + h / 2, w / 2, fg, LGRAY, DGRAY); }

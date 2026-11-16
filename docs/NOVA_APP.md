@@ -51,7 +51,7 @@ L'aspecte comú viu a `mod.h` (formes i icones) i `ui.h` (components amb text i 
 
 - Targetes: `ui_card(x, y, w, h, UI_LINE | UI_SOFT | UI_SOLID)`; `box()` ja és una targeta arrodonida. `rfill` i `rcard` per a formes pròpies.
 - Components: `ui_row(x, y, w, h, títol, subtítol, estat, acció, argument)` (fila de llista), `ui_toggle(x, y, w, h, actiu)`, `ui_tile(...)` (rajola), `ui_lv(x, y, w, h, etiqueta, valor)` (format estàndard d'un widget d'una línia).
-- Icones de línia: `ic_wifi`, `ic_sun`, `ic_refresh`, `ic_check`, `ic_chevron`, `ic_plus`, `ic_minus`, `ic_grid`, `ic_arrow`, `ic_arc`. Totes reben el centre, la meitat de la mida i el color.
+- Icones de línia: `ic_signal`, `ic_sun`, `ic_refresh`, `ic_check`, `ic_chevron`, `ic_plus`, `ic_minus`, `ic_grid`, `ic_arrow`, `ic_arc`. Totes reben el centre, la meitat de la mida i el color.
 - `button()` i `header()` del sistema ja segueixen aquest estil; no cal fer-hi res.
 
 ## Widgets de l'escriptori

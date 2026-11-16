@@ -430,7 +430,7 @@ static void v_quick(View *v) {
   solid = (net & NET_WIFIREADY) != 0;
   snprintf(st, sizeof(st), "%s", solid ? "connectat · toca per desconnectar" : (net & NET_WIFI) ? "encès · toca per connectar" : "apagat · toca per connectar");
   ui_tile(x0, y, tw, th, "Wi-Fi", st, solid, A_QWIFI, 0);
-  ic_wifi(x0 + U + U / 2, y + U + U / 2, r, solid ? 3 : 0, solid ? WHITE : BLACK, solid ? WHITE : DGRAY, !solid && !(net & NET_WIFI));
+  ic_signal(x0 + U + U / 2, y + U + U / 2, U * 3 / 2, wifi_level(), solid ? WHITE : BLACK, solid ? DGRAY : LGRAY, solid ? -1 : BLACK);
   if (lv >= 0) snprintf(st, sizeof(st), "%d%%", lv); else snprintf(st, sizeof(st), "no disponible");
   ui_tile(x1, y, tw, th, "Llum", st, 0, 0, 0);
   ic_sun(x1 + U + U / 2, y + U + U / 2, r, BLACK);
