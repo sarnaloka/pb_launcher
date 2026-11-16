@@ -1,5 +1,5 @@
-7
+8
 157628
-5bc78f1a
-Versió 2.0: interfície nova (inici amb preferits, capçaleres amb enrere i inici, Configuració amb «Sobre el dispositiu»), avisos i barra d'estat que s'actualitza per peces. Després d'actualitzar, surt i torna a obrir l'Escriptori, i actualitza tots els paquets.
-2.0
+a91978eb
+Versió 2.1: permet paquets amb feina de fons, com el nou «Xat» per Wi-Fi (instal·la'l des de Paquets). Després d'actualitzar, surt i torna a obrir l'Escriptori.
+2.1
