@@ -26,7 +26,7 @@ int NetConnect(const char *n) { (void)n; return 0; }
 int NetDisconnect(void) { printf("NetDisconnect\n"); return 0; }
 static int flState = 30, flOn = 1; int GetFrontlightState(void) { return getenv("NOLIGHT") ? INT_MIN : flState; } void SetFrontlightState(int s) { printf("light %d\n", s); flState = s; } int GetFrontlightEnabled(void) { return flOn; } void SetFrontlightEnabled(int e) { flOn = e; }
 void *QuickDownload(const char *url, int *retsize, int timeout) { char fn[600]; const char *m = strstr(url, "/main/"); FILE *f; long n; char *b, *q; (void)timeout;
-  if (strstr(url, "open-meteo")) snprintf(fn, sizeof(fn), "net/weather.json"); else if (m) { snprintf(fn, sizeof(fn), "net/repo/%s", m + 6); if ((q = strchr(fn, '?'))) *q = 0; } else snprintf(fn, sizeof(fn), "net/feed.xml");
+  if (strstr(url, "geocoding-api")) snprintf(fn, sizeof(fn), "net/geocode.json"); else if (strstr(url, "open-meteo")) snprintf(fn, sizeof(fn), "net/weather.json"); else if (m) { snprintf(fn, sizeof(fn), "net/repo/%s", m + 6); if ((q = strchr(fn, '?'))) *q = 0; } else snprintf(fn, sizeof(fn), "net/feed.xml");
   printf("download %s\n", fn); f = fopen(fn, "rb"); if (!f) return NULL; fseek(f, 0, SEEK_END); n = ftell(f); fseek(f, 0, SEEK_SET); b = malloc((size_t)n + 1); n = (long)fread(b, 1, (size_t)n, f); fclose(f); *retsize = (int)n; return b; }
 int TextRectHeight(int width, const char *s, int flags) { (void)flags; return (StringWidth(s) / (width > 0 ? width : 1) + 1) * cur->size * 13 / 10; }
 void ShowHourglass(void) {} void HideHourglass(void) {}

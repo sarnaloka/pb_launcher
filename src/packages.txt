@@ -9,6 +9,6 @@ conversor|Conversor|2|Longitud, pes, volum i temperatura.
 agenda|Agenda|2|Calendari amb esdeveniments per dia.
 sudoku|Sudoku|2|Partides amb solució única que es desen soles.
 buscamines|Buscamines|2|El clàssic, en un taulell de 9 per 9.
-temps|El temps|2|Previsió de set dies per a Barcelona (cal Wi-Fi).
+temps|El temps|3|Previsió de set dies per a Barcelona i altres ciutats que triïs (cal Wi-Fi).
 noticies|Notícies|2|Titulars de canals RSS, desats per llegir sense connexió.
 lector|Lector|2|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
