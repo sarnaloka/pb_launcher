@@ -132,6 +132,15 @@ static UNUSED void ic_grid(int cx, int cy, int r, int col) {
   int g = r / 5 > 2 ? r / 5 : 2, c = (r * 2 - g) / 2, i;
   for (i = 0; i < 4; i++) rfill(cx - r + (i % 2) * (c + g), cy - r + (i / 2) * (c + g), c, c, c / 4, col);
 }
+/* Cercle de càrrega de 12 raigs que s'esvaeixen de fosc a clar (el cap és el raig de dalt). cx,cy = centre; r = radi. */
+static UNUSED void ic_spinner(int cx, int cy, int r, int col) {
+  int k, t = r / 5 > 2 ? r / 5 : 2;
+  for (k = 0; k < 12; k++) {
+    double a = -k * 3.14159265 / 6;                 /* el raig 0 és el de dalt; la resta, en sentit antihorari */
+    int c = k < 3 ? col : k < 6 ? DGRAY : LGRAY;
+    thick(cx + (int)(sin(a) * r * 0.5), cy - (int)(cos(a) * r * 0.5), cx + (int)(sin(a) * r), cy - (int)(cos(a) * r), t, c);
+  }
+}
 /* fletxa vertical; down = 1 apunta avall. y = dalt, h = alçada. */
 static UNUSED void ic_arrow(int cx, int y, int h, int down, int col) {
   int hh = h * 2 / 5, t = h / 8 > 2 ? h / 8 : 2, k;

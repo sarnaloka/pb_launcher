@@ -25,7 +25,8 @@ static void icon_exit(int cx, int cy, int r, int col) {
   int i, t = r / 5 > 1 ? r / 5 : 2;
   for (i = -r * 3 / 4; i <= r * 3 / 4; i++) { FillArea(cx + i - t / 2, cy + i - t / 2, t + 1, t + 1, col); FillArea(cx + i - t / 2, cy - i - t / 2, t + 1, t + 1, col); }
 }
-/* Activitat de xarxa: bits que la barra d'estat mostra com a fletxes (baixada / pujada) al costat del Wi-Fi. */
+/* Activitat de xarxa: mentre és diferent de zero, la barra d'estat mostra un cercle de càrrega al costat del Wi-Fi.
+   Els bits distingeixen baixada i pujada per si més endavant cal diferenciar-les. */
 enum { NETA_DOWN = 1, NETA_UP = 2 };
 static int netAct;
 /* ───── elements de la barra d'estat ─────
@@ -67,12 +68,8 @@ static void si_wifi_d(int x, int y, int w, int h, int fg) {
   if (!off && !eco) { int q = GetNetSignalQuality(), bars = q < 0 ? 4 : (q * 4 + 4) / 5; if (bars < 1) bars = 1; if (bars > 4) bars = 4; level = (bars * 3 + 3) / 4; }
   ic_wifi(x + w / 2, y + h / 2 + r / 4, r, level, fg, off ? LGRAY : DGRAY, off);
 }
-static int si_net_w(int h) { int ah = h / 2 * 9 / 10; return netAct ? 2 * (ah * 4 / 5) + U / 3 : 0; }
-static void si_net_d(int x, int y, int w, int h, int fg) {
-  int ah = h / 2 * 9 / 10, aw = ah * 4 / 5, ay = y + (h - ah) / 2; (void)w;
-  ic_arrow(x + aw / 2, ay, ah, 1, (netAct & NETA_DOWN) ? fg : LGRAY);
-  ic_arrow(x + aw + U / 3 + aw / 2, ay, ah, 0, (netAct & NETA_UP) ? fg : LGRAY);
-}
+static int si_net_w(int h) { return netAct ? h / 2 : 0; }
+static void si_net_d(int x, int y, int w, int h, int fg) { ic_spinner(x + w / 2, y + h / 2, w / 2, fg); }
 static int status_modules(const StatusItem **out, int max);
 static void statusbar(int withHits) {
   static const StatusItem SYS[4] = { { "hora", si_time_w, si_time_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "xarxa", si_net_w, si_net_d } };
@@ -179,7 +176,7 @@ static char *net_get_t(const char *url, int *outLen, int timeout) {
   int size = 0; void *buf; char *copy;
   if (!(QueryNetwork() & NET_CONNECTED)) NetConnect(NULL);
   if (!(QueryNetwork() & NET_CONNECTED)) return NULL;
-  net_activity(NETA_DOWN);                 /* única actualització pròpia (les fletxes, un cop per operació); sense rellotge de sorra */
+  net_activity(NETA_DOWN);                 /* única actualització pròpia (el cercle, un cop per operació); sense rellotge de sorra */
   buf = QuickDownload(url, &size, timeout);
   if (!buf || size <= 0) { if (buf) free(buf); return NULL; }
   copy = (char *)malloc((size_t)size + 1);
