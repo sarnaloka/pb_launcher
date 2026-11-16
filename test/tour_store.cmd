@@ -12,9 +12,11 @@ tap Instal·la i actualitza-ho tot
 shot a6.txt
 xy 150 40
 shot a7.txt
+tap Següent >
 tap Sistema
 shot a8.txt
 xy 150 40
+tap Següent >
 tap Paquets
 tap Sudoku
 dlg 1

@@ -1,5 +1,5 @@
-3
-120720
-f7ef1b90
-Versió 0.9: indicador de xarxa a la barra d'estat (fletxes de baixada i pujada al costat del Wi-Fi mentre es descarrega).
-0.9
+4
+137132
+db645a5f
+Versió 1.0: escriptori amb widgets, tauler ràpid tocant la barra d'estat, barra amb ranures i disseny nou. Després d'actualitzar, obre Paquets i prem «Instal·la i actualitza-ho tot».
+1.0

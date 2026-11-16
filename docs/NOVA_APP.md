@@ -44,3 +44,29 @@ __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) 
 3. Compila amb `build.sh`, fes commit i push. Al lector apareixerà a Paquets després d'actualitzar el catàleg.
 
 Exemples reals, de més curt a més llarg: `rellotge.c`, `calculadora.c`, `tasques.c`, `agenda.c`, `noticies.c`.
+
+## Components de disseny (ESC_API 2)
+
+L'aspecte comú viu a `mod.h` (formes i icones) i `ui.h` (components amb text i tacte); fes-los servir en lloc de dibuixar vores a mà.
+
+- Targetes: `ui_card(x, y, w, h, UI_LINE | UI_SOFT | UI_SOLID)`; `box()` ja és una targeta arrodonida. `rfill` i `rcard` per a formes pròpies.
+- Components: `ui_row(x, y, w, h, títol, subtítol, estat, acció, argument)` (fila de llista), `ui_toggle(x, y, w, h, actiu)`, `ui_tile(...)` (rajola), `ui_lv(x, y, w, h, etiqueta, valor)` (format estàndard d'un widget d'una línia).
+- Icones de línia: `ic_wifi`, `ic_sun`, `ic_refresh`, `ic_check`, `ic_chevron`, `ic_plus`, `ic_minus`, `ic_grid`, `ic_arrow`, `ic_arc`. Totes reben el centre, la meitat de la mida i el color.
+- `button()` i `header()` del sistema ja segueixen aquest estil; no cal fer-hi res.
+
+## Widgets de l'escriptori
+
+Un paquet pot oferir peces d'informació per a l'escriptori. Declara'ls i passa'ls al final de `Module`:
+
+```c
+static void w_exemple(int x, int y, int w, int h) { ui_lv(x, y, w, h, "Exemple", "Hola"); }
+static const Widget WG[] = { { "hola", "Widget d'exemple", 2, 1, w_exemple } };   /* id, nom, columnes (2 o 4), alçada (1-3) */
+static Module M = { ESC_API, "exemple", "Exemple", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
+```
+
+El sistema dibuixa la targeta i crida `draw` amb l'interior. En tocar-lo s'obre el paquet. Els dibuixa de manera que els de 2 columnes s'aparellen; l'usuari tria quins es veuen i en quin ordre a «Personalitza l'inici» (tauler ràpid), i la selecció es desa a `system/config/escriptori_inici.txt` amb claus `paquet.widget`. Els widgets per defecte són `base.rellotge`, `temps.avui`, `tasques.pendents` i `agenda.proper`.
+
+## Ranures de la barra d'estat
+
+Un indicador petit a la barra superior: `StatusItem { id, width, draw }`. `width(h)` retorna l'amplada en píxels (0 = ara no es mostra) i `draw(x, y, w, h, color)` el dibuixa. S'avalua a cada refresc de la barra, així que ha de ser barat. Vegeu `tasques.c` (comptador de tasques pendents). Es passen com `1, SI` just abans dels widgets a `Module`.
+

@@ -110,5 +110,5 @@ static void mod_open(View *v) {
   snprintf(fpath, sizeof(fpath), "%s", FLASHDIR);
 }
 static int mod_back(View *v) { if (v->type == V_FILES && strlen(fpath) > strlen(FLASHDIR)) { files_up(); v->page = 0; return 1; } return 0; }
-static Module M = { ESC_API, "fitxers", "Fitxers", 0, mod_icon, mod_draw, mod_action, mod_back, mod_open };
+static Module M = { ESC_API, "fitxers", "Fitxers", 0, mod_icon, mod_draw, mod_action, mod_back, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

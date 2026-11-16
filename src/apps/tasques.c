@@ -31,6 +31,22 @@ static void v_todo(View *v) {
     y += rh;
   }
 }
+/* ───── widget i ranura d'estat ───── */
+static int todo_pending(void) { int i, n = 0; st_load(&todo); for (i = 0; i < todo.n; i++) if (todo.it[i][0] != '1') n++; return n; }
+static void w_pending(int x, int y, int w, int h) {
+  int n = todo_pending(); char t[60];
+  if (n == 0) snprintf(t, sizeof(t), "Cap de pendent"); else snprintf(t, sizeof(t), n == 1 ? "%d pendent" : "%d pendents", n);
+  ui_lv(x, y, w, h, "Tasques", t);
+}
+static int si_w(int h) { int n = todo_pending(); char t[16]; if (!n) return 0; snprintf(t, sizeof(t), "%d", n); SetFont(fSmall, BLACK); return h / 3 + U / 4 + StringWidth(t); }
+static void si_d(int x, int y, int w, int h, int fg) {
+  int n = todo_pending(), sz = h / 3; char t[16]; (void)w;
+  snprintf(t, sizeof(t), "%d", n);
+  rcard(x, y + (h - sz) / 2, sz, sz, 4, 2, fg, WHITE); ic_check(x + sz / 2, y + h / 2, sz * 4 / 10, fg);
+  SetFont(fSmall, fg); DrawTextRect(x + sz + U / 4, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
+}
+static const StatusItem SI[] = { { "pendents", si_w, si_d } };
+static const Widget WG[] = { { "pendents", "Tasques pendents", 2, 1, w_pending } };
 static void mod_icon(int x, int y, int s) {
   int i, j; (void)i; (void)j;
       for (i = 0; i < 3; i++) {
@@ -55,5 +71,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "tasques", "Tasques", 0, mod_icon, mod_draw, mod_action, NULL, mod_open };
+static Module M = { ESC_API, "tasques", "Tasques", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 1, SI, 1, WG };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

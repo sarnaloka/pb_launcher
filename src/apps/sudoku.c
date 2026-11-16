@@ -117,5 +117,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "sudoku", "Sudoku", 0, mod_icon, mod_draw, mod_action, NULL, mod_open };
+static Module M = { ESC_API, "sudoku", "Sudoku", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

@@ -6,7 +6,7 @@ i escriu en català tot el text de la interfície.
 ## Què és cada cosa
 
 - `src/base.c`, `src/base_gen.h`: sistema base (escriptori, barra d'estat, gestor de paquets, pantalla Sistema, actualització).
-- `src/mod.h`: interfície entre el sistema base (`Host`) i els paquets (`Module`). `ESC_API` n'és la versió.
+- `src/mod.h`: interfície entre el sistema base (`Host`) i els paquets (`Module`, `Widget`, `StatusItem`). `ESC_API` n'és la versió. Inclou les formes i icones del sistema de disseny; `src/ui.h` hi afegeix els components amb text i tacte (files, interruptors, rajoles).
 - `src/apps/<id>.c`: un fitxer per paquet (Bus AMB té a més `src/apps/busamb/`). `src/packages.txt`: nom, versió i descripció de cada paquet.
 - `packages/`: paquets compilats (`.pkg`) i catàleg `index.txt`. `Escriptori.app` i `version.txt`: sistema base publicat.
 - `src/shim/`: substitut de la biblioteca gràfica per provar a l'ordinador. `test/`: guions de prova i dades d'exemple.
@@ -15,8 +15,8 @@ i escriu en català tot el text de la interfície.
 ## Flux de treball
 
 1. Canvia el codi.
-2. Prova al simulador: `./build_sim.sh`, després executa `sim/uitest < test/<guió>.cmd` des de `sim/` (cal una carpeta
-   `sim/flash/` i, per a la xarxa simulada, `sim/net/repo/` amb el catàleg: `python3 tools/mkindex.py src/packages.txt sim/net/repo/packages`).
+2. Prova al simulador: `./build_sim.sh`, després executa `sim/uitest < test/<guió>.cmd` des de `sim/` (cal l'estructura
+   `sim/flash/system/config`, `sim/flash/system/escriptori/packages` i `sim/flash/applications` (sense `system/` les instal·lacions fallen en silenci) i, per a la xarxa simulada, `sim/net/repo/` amb el catàleg: `python3 tools/mkindex.py src/packages.txt sim/net/repo/packages`).
    El simulador es compila amb comprovadors de memòria: no ha de sortir cap error. `src/shim/render.py` converteix les pantalles en imatges; mira-les.
 3. Compila per al lector amb `build.sh` i el SDK oficial:
    `git clone --depth 1 --branch 6.5 https://github.com/pocketbook/SDK_6.3.0` (uns 2,6 GB) i `SDK=<camí>/SDK-B288 ./build.sh`.
@@ -33,7 +33,7 @@ i escriu en català tot el text de la interfície.
 ## Límits que cal tenir presents i dir clarament
 
 - Res no es pot executar al lector des d'una sessió: només es prova al simulador. Digues sempre què s'ha provat i què no.
-- Pantalla de tinta electrònica en blanc i negre, 1072×1448: sense animacions, botons grans, llistes paginades.
+- Pantalla de tinta electrònica en blanc i negre, 1072×1448: sense animacions, botons grans, llistes paginades. Les descàrregues bloquegen el programa: l'indicador de xarxa només canvia amb una actualització parcial abans i després.
 - Les funcions del sistema (xarxa, obrir fitxers, llançar altres apps) no estan verificades al lector fins que ella ho confirmi.
 - El repositori és públic: no hi posis dades personals. Les dades de l'usuari viuen al lector, a `system/config/`.
 - Dibuixa icones pròpies amb formes simples; no copiïs logotips ni icones d'altres sistemes.

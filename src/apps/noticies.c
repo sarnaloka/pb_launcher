@@ -142,6 +142,14 @@ static void v_feeds(View *v) {
   }
   SetFont(fSmall, BLACK); DrawTextRect(U / 2, y + U / 4, SW - U, U + U / 4, "Toca un canal per esborrar-lo.", ALIGN_LEFT | VALIGN_MIDDLE);
 }
+/* ───── widget ───── */
+static void w_headline(int x, int y, int w, int h) {
+  char t[300] = "Encara no hi ha titulars"; char *tab;
+  st_load(&news);
+  if (news.n > 0) { snprintf(t, sizeof(t), "%s", news.it[0]); if ((tab = strchr(t, '\t'))) *tab = 0; }
+  ui_lv(x, y, w, h, "Notícies · últim titular", t);
+}
+static const Widget WG[] = { { "titular", "Últim titular", 4, 1, w_headline } };
 static void mod_icon(int x, int y, int s) {
   int i, j; (void)i; (void)j;
       FillArea(x + s / 6, y + s / 6, s * 2 / 3, s * 2 / 3, BLACK); FillArea(x + s / 6 + 4, y + s / 6 + 4, s * 2 / 3 - 8, s * 2 / 3 - 8, WHITE);
@@ -168,5 +176,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "noticies", "Notícies", 0, mod_icon, mod_draw, mod_action, NULL, mod_open };
+static Module M = { ESC_API, "noticies", "Notícies", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

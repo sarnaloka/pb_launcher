@@ -1,11 +1,11 @@
 #include "inkview.h"
 #include "afm.h"
 typedef struct { char kind; int x, y, w, h, color, size, bold, flags; char text[700]; } Op;
-static Op ops[4000]; static int nops; static const ifont *cur; static int curColor; static iv_handler H; static char pendingKbd[100];
+static Op ops[40000]; static int nops; static const ifont *cur; static int curColor; static iv_handler H; static char pendingKbd[100];
 static int updates; static int dlgBtn = 2;
 int ScreenWidth(void) { return 1072; } int ScreenHeight(void) { return 1448; }
 void ClearScreen(void) { nops = 0; }
-static Op *add(char k, int x, int y, int w, int h, int color) { Op *o; if (nops >= 4000) { fprintf(stderr, "too many ops\n"); exit(2); } o = &ops[nops++]; memset(o, 0, sizeof(*o)); o->kind = k; o->x = x; o->y = y; o->w = w; o->h = h; o->color = color; return o; }
+static Op *add(char k, int x, int y, int w, int h, int color) { Op *o; if (nops >= 40000) { fprintf(stderr, "too many ops\n"); exit(2); } o = &ops[nops++]; memset(o, 0, sizeof(*o)); o->kind = k; o->x = x; o->y = y; o->w = w; o->h = h; o->color = color; return o; }
 void DrawLine(int x1, int y1, int x2, int y2, int c) { add('L', x1, y1, x2, y2, c); }
 void DrawRect(int x, int y, int w, int h, int c) { add('R', x, y, w, h, c); }
 void FillArea(int x, int y, int w, int h, int c) { add('F', x, y, w, h, c); }
@@ -22,6 +22,8 @@ void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int Ge
 void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { (void)n; (void)tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { (void)tp; } static void shot(const char *name);
 void PartialUpdate(int x, int y, int w, int h) { static int n; (void)x; (void)y; (void)w; (void)h; if (getenv("PUSHOT")) { char fn[64]; snprintf(fn, sizeof(fn), "pu%d.txt", ++n); shot(fn); } }
 int NetConnect(const char *n) { (void)n; return 0; }
+int NetDisconnect(void) { printf("NetDisconnect\n"); return 0; }
+static int flState = 30, flOn = 1; int GetFrontlightState(void) { return getenv("NOLIGHT") ? INT_MIN : flState; } void SetFrontlightState(int s) { printf("light %d\n", s); flState = s; } int GetFrontlightEnabled(void) { return flOn; } void SetFrontlightEnabled(int e) { flOn = e; }
 void *QuickDownload(const char *url, int *retsize, int timeout) { char fn[600]; const char *m = strstr(url, "/main/"); FILE *f; long n; char *b, *q; (void)timeout;
   if (strstr(url, "open-meteo")) snprintf(fn, sizeof(fn), "net/weather.json"); else if (m) { snprintf(fn, sizeof(fn), "net/repo/%s", m + 6); if ((q = strchr(fn, '?'))) *q = 0; } else snprintf(fn, sizeof(fn), "net/feed.xml");
   printf("download %s\n", fn); f = fopen(fn, "rb"); if (!f) return NULL; fseek(f, 0, SEEK_END); n = ftell(f); fseek(f, 0, SEEK_SET); b = malloc((size_t)n + 1); n = (long)fread(b, 1, (size_t)n, f); fclose(f); *retsize = (int)n; return b; }

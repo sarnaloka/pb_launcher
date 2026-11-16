@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <limits.h>
 #include <sys/stat.h>
 typedef struct ifont_s { int size, bold; } ifont;
 typedef int (*iv_handler)(int type, int par1, int par2);
@@ -28,7 +29,8 @@ typedef void (*iv_dialoghandler)(int button);
 #define NET_WIFIREADY 0x0200
 #define PANEL_DISABLED 0
 void SetPanelType(int t); int PanelHeight(void);
-int NetConnect(const char *name); void *QuickDownload(const char *url, int *retsize, int timeout); int TextRectHeight(int width, const char *s, int flags);
+int NetConnect(const char *name); int NetDisconnect(void);
+int GetFrontlightState(void); void SetFrontlightState(int s); int GetFrontlightEnabled(void); void SetFrontlightEnabled(int e); void *QuickDownload(const char *url, int *retsize, int timeout); int TextRectHeight(int width, const char *s, int flags);
 #define EVT_FOREGROUND 151
 #define EVT_BACKGROUND 152
 typedef void (*iv_timerproc)();

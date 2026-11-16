@@ -354,5 +354,5 @@ static void mod_open(View *v) {
   (void)v;
   if (!loaded) { loaded = 1; loadErr = amb_load(amb_blob, (long)(amb_blob_end - amb_blob)); if (!loadErr) favs_load(); }
 }
-static Module M = { ESC_API, "busamb", "Bus AMB", 0, mod_icon, mod_draw, mod_action, NULL, mod_open };
+static Module M = { ESC_API, "busamb", "Bus AMB", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

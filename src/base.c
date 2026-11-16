@@ -2,16 +2,18 @@
 #include "mod.h"
 #include <dlfcn.h>
 #include <sys/statvfs.h>
+#include <limits.h>
 
-#define APP_BUILD 3
-#define APP_VERNAME "0.9"
+#define APP_BUILD 4
+#define APP_VERNAME "1.0"
 #define UPD_BASE "https://raw.githubusercontent.com/sarnaloka/pb_launcher/main/"
 #define SYSDIR FLASHDIR "/system/escriptori"
 #define PKGDIR SYSDIR "/packages"
 
-enum { V_DESK, V_STORE, V_PKG, V_SYSTEM };
+enum { V_DESK, V_STORE, V_PKG, V_SYSTEM, V_QUICK, V_HOME };
 enum { A_NONE, A_BACK, A_HOME, A_PREV, A_NEXT, A_EXIT, A_APP, A_STORE_REFRESH, A_STORE_ALL, A_PKG, A_PKG_INSTALL, A_PKG_REMOVE,
-       A_UPD_CHECK, A_UPD_INSTALL, A_WIFI };          /* les accions dels paquets comencen a 100 */
+       A_UPD_CHECK, A_UPD_INSTALL, A_WIFI,
+       A_QUICK, A_WIDGET, A_QWIFI, A_QLIGHT_DN, A_QLIGHT_UP, A_QCLEAN, A_QGO, A_HE_TOGGLE, A_HE_UP, A_HE_DN };          /* les accions dels paquets comencen a 100 */
 typedef struct { int x, y, w, h, act, arg; } Hit;
 #define MAXSTACK 24
 #define MAXHITS 400
@@ -29,6 +31,7 @@ static const char *pendMsg;
 static void say(const char *m) { pendMsg = m; }
 
 #include "base_gen.h"
+#include "ui.h"
 
 /* ───────────── paquets carregats ───────────── */
 typedef struct { void *dl; Module *m; char id[48]; } Loaded;
@@ -58,6 +61,18 @@ static void mod_unload(int i) {
   dlclose(mods[i].dl);
   memmove(&mods[i], &mods[i + 1], sizeof(Loaded) * (size_t)(nmods - i - 1));
   nmods--;
+}
+static int status_modules(const StatusItem **out, int max) {
+  int i, j, n = 0;
+  for (i = 0; i < nmods; i++) for (j = 0; j < mods[i].m->nstatus && n < max; j++) out[n++] = &mods[i].m->status[j];
+  return n;
+}
+static int pkgs_on_disk(void) {
+  DIR *d = opendir(PKGDIR); struct dirent *e; int n = 0;
+  if (!d) return 0;
+  while ((e = readdir(d))) { size_t l = strlen(e->d_name); if (l > 4 && e->d_name[0] != '.' && !strcmp(e->d_name + l - 4, ".pkg")) n++; }
+  closedir(d);
+  return n;
 }
 static void mods_scan(void) {
   DIR *d = opendir(PKGDIR); struct dirent *e; char id[48];
@@ -123,7 +138,7 @@ static int write_file(const char *path, const char *data, long len) {
 }
 static int store_refresh(void) {
   char url[300], *b; int len = 0;
-  snprintf(url, sizeof(url), UPD_BASE "packages/index.txt?t=%ld", (long)time(NULL));
+  snprintf(url, sizeof(url), UPD_BASE "packages/index.txt?t=%ld&r=%d", (long)time(NULL), rand());
   b = net_get_t(url, &len, 25);
   if (!b) return -1;
   if (!strchr(b, '|')) { free(b); return -2; }
@@ -136,7 +151,7 @@ static int store_refresh(void) {
 /* 0 correcte; -1 xarxa; -2 la descàrrega no quadra; -3 no es pot desar; -4 no es pot carregar */
 static int pkg_install(const Pkg *q) {
   char url[300], path[700], ver[32], *b; int len = 0, i;
-  snprintf(url, sizeof(url), UPD_BASE "packages/%s.pkg?t=%ld", q->id, (long)time(NULL));
+  snprintf(url, sizeof(url), UPD_BASE "packages/%s.pkg?t=%ld&r=%d", q->id, (long)time(NULL), rand());
   b = net_get_t(url, &len, 180);
   if (!b) return -1;
   if ((long)len != q->size || crc32_buf((const unsigned char *)b, len) != q->crc || len < 1000 || memcmp(b, "\177ELF", 4)) { free(b); return -2; }
@@ -182,7 +197,7 @@ static int updBuild; static long updSize; static unsigned long updCrc; static ch
 /* version.txt: 1 compilació, 2 mida, 3 CRC32 hex, 4 novetats, 5 nom de la versió */
 static void upd_check(void) {
   char url[300], *b, *l[5]; int k;
-  snprintf(url, sizeof(url), UPD_BASE "version.txt?t=%ld", (long)time(NULL));
+  snprintf(url, sizeof(url), UPD_BASE "version.txt?t=%ld&r=%d", (long)time(NULL), rand());
   b = net_get_t(url, NULL, 25);
   updState = -1; updNotes[0] = 0; updName[0] = 0;
   if (!b) { say("No s'ha pogut consultar la versió. Comprova el Wi-Fi."); return; }
@@ -199,7 +214,7 @@ static void upd_check(void) {
 }
 static void upd_install(void) {
   char url[300], *b; int len = 0;
-  snprintf(url, sizeof(url), UPD_BASE "Escriptori.app?t=%ld", (long)time(NULL));
+  snprintf(url, sizeof(url), UPD_BASE "Escriptori.app?t=%ld&r=%d", (long)time(NULL), rand());
   b = net_get_t(url, &len, 180);
   if (!b) { say("No s'ha pogut descarregar l'actualització."); return; }
   if ((long)len != updSize || crc32_buf((const unsigned char *)b, len) != updCrc || len < 20000 || memcmp(b, "\177ELF", 4)) {
@@ -229,38 +244,211 @@ static void icon_system(int x, int y, int s) {
 }
 static const char *WDAYB[7] = { "diumenge", "dilluns", "dimarts", "dimecres", "dijous", "divendres", "dissabte" };
 static const char *MONTHB[12] = { "de gener", "de febrer", "de març", "d'abril", "de maig", "de juny", "de juliol", "d'agost", "de setembre", "d'octubre", "de novembre", "de desembre" };
-static void v_desk(View *v) {
-  time_t now = time(NULL); struct tm *tm = localtime(&now); char t[16], d[200];
-  int y = SB + U / 2, cols = 4, cw = (SW - U) / cols, s = cw * 55 / 100, cellh, per, i, total, k = 0;
-  ext_scan();
-  total = nmods + 2 + nExt;
+/* ───────────── widgets de l'escriptori ─────────────
+   Els widgets són peces d'informació que els paquets (o el sistema) ofereixen; l'usuari tria quins es veuen i en quin
+   ordre (pantalla «Personalitza l'inici»). La selecció es desa a system/config/escriptori_inici.txt, una clau per línia
+   amb la forma «paquet.widget». Es col·loquen de dreta a esquerra en graella de 4 columnes (Widget.cw = 2 o 4). */
+typedef struct { char key[64]; const char *name; int cw, ch, mod; void (*draw)(int, int, int, int); } WEnt;
+#define MAXW 48
+static WEnt wl[MAXW]; static int nwl;
+static char homeKeys[MAXW][64]; static int nHome, homeLoaded;
+#define HOMECFG CFG "escriptori_inici.txt"
+static void w_clock(int x, int y, int w, int h) {
+  time_t now = time(NULL); struct tm *tm = localtime(&now); char t[16], d[100];
   snprintf(t, sizeof(t), "%d:%02d", tm->tm_hour, tm->tm_min);
-  SetFont(fHuge, BLACK); DrawTextRect(U / 2, y, SW - U, 4 * U, t, ALIGN_CENTER | VALIGN_MIDDLE); y += 4 * U;
+  SetFont(fHuge, BLACK); DrawTextRect(x, y, w, h * 7 / 10, t, ALIGN_CENTER | VALIGN_MIDDLE);
   snprintf(d, sizeof(d), "%s, %d %s", WDAYB[tm->tm_wday], tm->tm_mday, MONTHB[tm->tm_mon]);
-  SetFont(fText, BLACK); DrawTextRect(U / 2, y, SW - U, U + U / 2, d, ALIGN_CENTER | VALIGN_MIDDLE); y += 2 * U + U / 2;
-  FillArea(U / 2, y - U / 2, SW - U, 2, BLACK);
+  SetFont(fText, BLACK); DrawTextRect(x, y + h * 7 / 10, w, h * 3 / 10, d, ALIGN_CENTER | VALIGN_MIDDLE);
+}
+#define w_label_value ui_lv
+static void w_batt(int x, int y, int w, int h) {
+  char t[48]; snprintf(t, sizeof(t), "%d%%%s", GetBatteryPower(), IsCharging() ? " · carregant" : "");
+  w_label_value(x, y, w, h, "Bateria", t);
+}
+static void w_space(int x, int y, int w, int h) {
+  struct statvfs sv; char t[48] = "—";
+  if (statvfs(FLASHDIR, &sv) == 0) snprintf(t, sizeof(t), "%ld MB", (long)((double)sv.f_bavail * (double)sv.f_frsize / 1048576.0));
+  w_label_value(x, y, w, h, "Espai lliure", t);
+}
+static void wl_add(const char *key, const char *name, int cw, int ch, int mod, void (*dr)(int, int, int, int)) {
+  if (nwl >= MAXW) return;
+  snprintf(wl[nwl].key, sizeof(wl[nwl].key), "%s", key); wl[nwl].name = name;
+  wl[nwl].cw = cw == 4 ? 4 : 2; wl[nwl].ch = ch < 1 ? 1 : ch > 3 ? 3 : ch; wl[nwl].mod = mod; wl[nwl].draw = dr; nwl++;
+}
+static void wl_collect(void) {
+  int i, j; char k[64];
+  nwl = 0;
+  wl_add("base.rellotge", "Rellotge i data", 4, 2, -1, w_clock);
+  wl_add("base.bateria", "Bateria", 2, 1, -1, w_batt);
+  wl_add("base.espai", "Espai lliure", 2, 1, -1, w_space);
+  for (i = 0; i < nmods; i++)
+    for (j = 0; j < mods[i].m->nwidgets; j++) {
+      const Widget *w = &mods[i].m->widgets[j];
+      snprintf(k, sizeof(k), "%s.%s", mods[i].id, w->id);
+      wl_add(k, w->name, w->cw, w->ch, i, w->draw);
+    }
+}
+static int wl_find(const char *key) { int i; for (i = 0; i < nwl; i++) if (!strcmp(wl[i].key, key)) return i; return -1; }
+static int home_find(const char *key) { int i; for (i = 0; i < nHome; i++) if (!strcmp(homeKeys[i], key)) return i; return -1; }
+static void home_add(const char *key) { if (nHome < MAXW && home_find(key) < 0) snprintf(homeKeys[nHome++], sizeof(homeKeys[0]), "%s", key); }
+static void home_load(void) {
+  struct stat st; FILE *f; char ln[100];
+  if (homeLoaded) return;
+  homeLoaded = 1; nHome = 0;
+  if (stat(HOMECFG, &st) != 0) { home_add("base.rellotge"); home_add("temps.avui"); home_add("tasques.pendents"); home_add("agenda.proper"); return; }
+  f = fopen(HOMECFG, "r");
+  if (!f) return;
+  while (fgets(ln, sizeof(ln), f)) { ln[strcspn(ln, "\r\n")] = 0; if (ln[0]) home_add(ln); }
+  fclose(f);
+}
+static void home_save(void) {
+  FILE *f = fopen(HOMECFG, "w"); int i;
+  if (!f) return;
+  for (i = 0; i < nHome; i++) fprintf(f, "%s\n", homeKeys[i]);
+  fclose(f);
+}
+/* Dibuixa els widgets escollits a partir de y0 sense passar de maxh; retorna l'alçada ocupada (amb la separació final). */
+static int home_draw(int y0, int maxh) {
+  int unit = 3 * U, gap = U / 3, W = SW - U, idx[MAXW], rowOf[MAXW], colOf[MAXW], rowH[MAXW + 1], rowY[MAXW + 1];
+  int n = 0, i, row = 0, col = 0, nrows, used = 0, shown = 0;
+  for (i = 0; i < nHome && n < MAXW; i++) { int k = wl_find(homeKeys[i]); if (k >= 0) idx[n++] = k; }
+  memset(rowH, 0, sizeof(rowH));
+  for (i = 0; i < n; i++) {
+    const WEnt *e = &wl[idx[i]]; int h = e->ch * unit;
+    if (col + e->cw > 4) { row++; col = 0; }
+    rowOf[i] = row; colOf[i] = col; col += e->cw;
+    if (h > rowH[row]) rowH[row] = h;
+    if (col >= 4) { row++; col = 0; }
+  }
+  nrows = col > 0 ? row + 1 : row;
+  for (i = 0; i < nrows; i++) {
+    if (used + rowH[i] > maxh) break;
+    rowY[i] = y0 + used; used += rowH[i] + gap; shown = i + 1;
+  }
+  for (i = 0; i < n; i++) {
+    const WEnt *e = &wl[idx[i]]; int r = rowOf[i], x, w, h;
+    if (r >= shown) continue;
+    h = rowH[r];
+    if (e->cw == 4) { x = U / 2; w = W; }
+    else { w = (W - gap) / 2; x = colOf[i] == 0 ? U / 2 : U / 2 + W - w; }
+    ui_card(x, rowY[r], w, h, UI_LINE);
+    if (e->draw) e->draw(x + U / 2, rowY[r] + U / 3, w - U, h - 2 * (U / 3));
+    add_hit(x, rowY[r], w, h, A_WIDGET, idx[i]);
+  }
+  return used;
+}
+
+static int pkgs_incompatible(void) { int n = pkgs_on_disk() - nmods; return n > 0 ? n : 0; }
+static void v_desk(View *v) {
+  char d[200]; int y = SB + U / 2, cols = 4, cw = (SW - U) / cols, s = cw * 55 / 100, cellh, per, i, total, k = 0;
+  ext_scan(); wl_collect(); home_load();
+  total = nmods + 2 + nExt;
+  y += home_draw(y, (BOTTOM - y) * 55 / 100) + U / 4;
   cellh = s + 2 * U + U / 4;
   per = ((BOTTOM - y) / cellh) * cols; if (per < cols) per = cols;
   pages = (total + per - 1) / per; if (v->page >= pages) v->page = pages - 1;
   for (i = v->page * per; i < total && k < per; i++, k++) {
     int cx = U / 2 + (k % cols) * cw, cy = y + (k / cols) * cellh, ix = cx + (cw - s) / 2;
+    ui_card(ix - U / 6, cy - U / 6, s + U / 3, s + U / 3, UI_SOFT);
     if (i < nmods) { if (mods[i].m->fn_icon) mods[i].m->fn_icon(ix, cy, s); snprintf(d, sizeof(d), "%s", mods[i].m->name); }
     else if (i == nmods) { icon_store(ix, cy, s); snprintf(d, sizeof(d), "Paquets"); }
     else if (i == nmods + 1) { icon_system(ix, cy, s); snprintf(d, sizeof(d), "Sistema"); }
     else {
-      size_t n;
-      FillArea(ix + s / 6, cy + s / 6, s * 2 / 3, s * 2 / 3, BLACK);
+      size_t n; char t[8];
+      rfill(ix + s / 6, cy + s / 6, s * 2 / 3, s * 2 / 3, s / 8, BLACK);
       snprintf(d, sizeof(d), "%s", extApps[i - nmods - 2]); n = strlen(d); if (n > 4) d[n - 4] = 0;
       t[0] = d[0]; t[1] = 0; if ((unsigned char)d[0] >= 0xC0) { t[1] = d[1]; t[2] = 0; }
       SetFont(fHuge, WHITE); DrawTextRect(ix, cy, s, s, t, ALIGN_CENTER | VALIGN_MIDDLE);
     }
-    SetFont(fSmall, BLACK); DrawTextRect(cx + 2, cy + s, cw - 4, U + U / 2, d, ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
+    SetFont(fSmall, BLACK); DrawTextRect(cx + 2, cy + s + U / 6, cw - 4, U + U / 2, d, ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
     add_hit(cx, cy, cw, s + 2 * U, A_APP, i);
   }
   if (!nmods && v->page == 0) {
+    int old = pkgs_incompatible(); char t[260];
+    if (old) snprintf(t, sizeof(t), "Hi ha %d paquets d'una versió anterior del sistema.\nObre «Paquets» i prem «Instal·la i actualitza-ho tot».", old);
+    else snprintf(t, sizeof(t), "Encara no hi ha cap aplicació instal·lada.\nObre «Paquets» amb el Wi-Fi connectat per baixar-ne.");
     SetFont(fText, BLACK);
-    DrawTextRect(U / 2, y + 2 * cellh, SW - U, 4 * U, "Encara no hi ha cap aplicació instal·lada.\nObre «Paquets» amb el Wi-Fi connectat per baixar-ne.", ALIGN_CENTER | VALIGN_TOP);
+    DrawTextRect(U / 2, y + cellh, SW - U, 4 * U, t, ALIGN_CENTER | VALIGN_TOP);
   }
+}
+
+/* ───────────── personalitza l'inici ───────────── */
+static void v_home(View *v) {
+  int y = TOP, rh = 3 * U, per, i, n = 0, nen, ord[MAXW], tw = 2 * U, th = U + U / 2, bs = 2 * U;
+  wl_collect(); home_load();
+  for (i = 0; i < nHome; i++) { int k = wl_find(homeKeys[i]); if (k >= 0) ord[n++] = k; }
+  nen = n;
+  for (i = 0; i < nwl; i++) if (home_find(wl[i].key) < 0) ord[n++] = i;
+  header("Personalitza l'inici", "Tria quins widgets es veuen i en quin ordre");
+  per = (BOTTOM - y) / rh; if (per < 1) per = 1;
+  pages = n ? (n + per - 1) / per : 1; if (v->page >= pages) v->page = pages - 1;
+  for (i = v->page * per; i < n && i < (v->page + 1) * per; i++) {
+    int k = ord[i], en = i < nen, ry = y + (i - v->page * per) * rh, tx = SW - U - tw, by = ry + (rh - U / 4 - bs) / 2; char sub[80];
+    ui_card(U / 2, ry, SW - U, rh - U / 4, en ? UI_LINE : UI_SOFT);
+    snprintf(sub, sizeof(sub), "%s · %s", wl[k].cw == 4 ? "ample" : "mig", wl[k].mod >= 0 ? mods[wl[k].mod].m->name : "sistema");
+    SetFont(fBold, en ? BLACK : DGRAY); DrawTextRect(U, ry + U / 8, tx - 2 * bs - 2 * U, rh / 2 - U / 8, wl[k].name, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    SetFont(fSmall, DGRAY); DrawTextRect(U, ry + rh / 2 - U / 4, tx - 2 * bs - 2 * U, rh / 2 - U / 4, sub, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    ui_toggle(tx, ry + (rh - U / 4 - th) / 2, tw, th, en);
+    add_hit(tx - U / 2, ry, tw + U, rh - U / 4, A_HE_TOGGLE, k);
+    if (en) {
+      int ux = tx - U - 2 * bs - U / 4, up = i > 0, dn = i < nen - 1, ah = bs * 5 / 10;
+      rcard(ux, by, bs, bs, 8, 2, up ? BLACK : LGRAY, WHITE); ic_arrow(ux + bs / 2, by + (bs - ah) / 2, ah, 0, up ? BLACK : LGRAY);
+      rcard(ux + bs + U / 4, by, bs, bs, 8, 2, dn ? BLACK : LGRAY, WHITE); ic_arrow(ux + bs + U / 4 + bs / 2, by + (bs - ah) / 2, ah, 1, dn ? BLACK : LGRAY);
+      if (up) add_hit(ux, by, bs, bs, A_HE_UP, k);
+      if (dn) add_hit(ux + bs + U / 4, by, bs, bs, A_HE_DN, k);
+    }
+  }
+  if (!n) { SetFont(fText, BLACK); DrawTextRect(U / 2, y, SW - U, 3 * U, "No hi ha cap widget disponible.", ALIGN_LEFT | VALIGN_TOP); }
+}
+static void home_move(int key, int dir) {
+  int p = home_find(wl[key].key), q;
+  if (p < 0) return;
+  for (q = p + dir; q >= 0 && q < nHome && wl_find(homeKeys[q]) < 0; q += dir) {}
+  if (q < 0 || q >= nHome) return;
+  { char t[64]; memcpy(t, homeKeys[p], 64); memcpy(homeKeys[p], homeKeys[q], 64); memcpy(homeKeys[q], t, 64); }
+  home_save();
+}
+static void home_toggle(int key) {
+  int p = home_find(wl[key].key);
+  if (p >= 0) { memmove(homeKeys[p], homeKeys[p + 1], sizeof(homeKeys[0]) * (size_t)(nHome - p - 1)); nHome--; }
+  else home_add(wl[key].key);
+  home_save();
+}
+
+/* ───────────── tauler ràpid ───────────── */
+static int light_get(void) { int v = GetFrontlightState(); return v == INT_MIN ? -1 : v; }
+static void v_quick(View *v) {
+  int gap = U / 2, tw = (SW - U - gap) / 2, th = 5 * U, x0 = U / 2, x1 = U / 2 + tw + gap, y = TOP, net = QueryNetwork(), lv = light_get(), bs = 2 * U, r = U * 8 / 10;
+  char t[100], st[60]; int solid;
+  (void)v;
+  snprintf(t, sizeof(t), "Bateria %d%%%s", GetBatteryPower(), IsCharging() ? " · carregant" : "");
+  header("Tauler ràpid", t);
+  /* fila 1: Wi-Fi i llum */
+  solid = (net & NET_WIFIREADY) != 0;
+  snprintf(st, sizeof(st), "%s", solid ? "connectat · toca per desconnectar" : (net & NET_WIFI) ? "encès · toca per connectar" : "apagat · toca per connectar");
+  ui_tile(x0, y, tw, th, "Wi-Fi", st, solid, A_QWIFI, 0);
+  ic_wifi(x0 + U + U / 2, y + U + U / 2, r, solid ? 3 : 0, solid ? WHITE : BLACK, solid ? WHITE : DGRAY, !solid && !(net & NET_WIFI));
+  if (lv >= 0) snprintf(st, sizeof(st), "%d%%", lv); else snprintf(st, sizeof(st), "no disponible");
+  ui_tile(x1, y, tw, th, "Llum", st, 0, 0, 0);
+  ic_sun(x1 + U + U / 2, y + U + U / 2, r, BLACK);
+  rcard(x1 + tw - U / 2 - 2 * bs - U / 3, y + U / 2, bs, bs, 8, 2, BLACK, WHITE); ic_minus(x1 + tw - U / 2 - 2 * bs - U / 3 + bs / 2, y + U / 2 + bs / 2, bs * 6 / 10, BLACK);
+  rcard(x1 + tw - U / 2 - bs, y + U / 2, bs, bs, 8, 2, BLACK, WHITE); ic_plus(x1 + tw - U / 2 - bs / 2, y + U / 2 + bs / 2, bs * 6 / 10, BLACK);
+  add_hit(x1 + tw - U / 2 - 2 * bs - U / 3, y + U / 2, bs, bs, A_QLIGHT_DN, 0);
+  add_hit(x1 + tw - U / 2 - bs, y + U / 2, bs, bs, A_QLIGHT_UP, 0);
+  /* fila 2: neteja de pantalla i inici */
+  y += th + gap;
+  ui_tile(x0, y, tw, th, "Neteja la pantalla", "refresc complet", 0, A_QCLEAN, 0);
+  ic_refresh(x0 + U + U / 2, y + U + U / 2, r, BLACK);
+  ui_tile(x1, y, tw, th, "Personalitza l'inici", "widgets i ordre", 0, A_QGO, 2);
+  ic_grid(x1 + U + U / 2, y + U + U / 2, r * 8 / 10, BLACK);
+  /* fila 3: paquets i sistema */
+  y += th + gap;
+  snprintf(st, sizeof(st), "%d instal·lats", nmods);
+  ui_tile(x0, y, tw, th, "Paquets", st, 0, A_QGO, 1);
+  icon_store(x0 + U / 2, y + U / 4, 2 * U + U / 2);
+  snprintf(st, sizeof(st), "versió %s", APP_VERNAME);
+  ui_tile(x1, y, tw, th, "Sistema", st, 0, A_QGO, 0);
+  icon_system(x1 + U / 2, y + U / 4, 2 * U + U / 2);
 }
 static void v_store(View *v) {
   int y = TOP, bh = 2 * U + U / 4, rh = 3 * U, per, i, bw = (SW - U - U / 3) / 2, inst = 0, pend = 0; char sub[100];
@@ -274,13 +462,7 @@ static void v_store(View *v) {
   pages = ncat ? (ncat + per - 1) / per : 1; if (v->page >= pages) v->page = pages - 1;
   if (!ncat) { SetFont(fText, BLACK); DrawTextRect(U / 2, y, SW - U, 5 * U, "Encara no s'ha baixat el catàleg.\nConnecta el Wi-Fi i prem «Actualitza el catàleg».", ALIGN_LEFT | VALIGN_TOP); }
   for (i = v->page * per; i < ncat && i < (v->page + 1) * per; i++) {
-    const char *st = pkg_state(&cat[i]); int sw2;
-    box(U / 2, y, SW - U, rh - U / 4);
-    SetFont(fSmall, BLACK); sw2 = StringWidth(st) + U / 2;
-    DrawTextRect(SW - U - sw2, y + U / 6, sw2, rh / 2, st, ALIGN_RIGHT | VALIGN_MIDDLE);
-    SetFont(fBold, BLACK); DrawTextRect(U, y + U / 6, SW - 2 * U - sw2, rh / 2, cat[i].name, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
-    SetFont(fSmall, BLACK); DrawTextRect(U, y + rh / 2, SW - 2 * U, rh / 2 - U / 4, cat[i].desc, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
-    add_hit(U / 2, y, SW - U, rh - U / 4, A_PKG, i);
+    ui_row(U / 2, y, SW - U, rh - U / 4, cat[i].name, cat[i].desc, pkg_state(&cat[i]), A_PKG, i);
     y += rh;
   }
 }
@@ -321,8 +503,8 @@ static void v_system(View *v) {
   FillArea(U / 2, y, SW - U, 2, BLACK); y += U / 2;
   SetFont(fBold, BLACK); DrawTextRect(U / 2, y, SW - U, lh, "Actualització del sistema", ALIGN_LEFT | VALIGN_MIDDLE); y += lh;
   if (updState == 0) snprintf(t, sizeof(t), "Comprova si hi ha una versió nova de l'Escriptori.");
-  else if (updState == 1) snprintf(t, sizeof(t), "Ja tens l'última versió.");
-  else if (updState == 2) snprintf(t, sizeof(t), "Hi ha la versió %s disponible.%s%s", updName, updNotes[0] ? "\n" : "", updNotes);
+  else if (updState == 1) snprintf(t, sizeof(t), "Ja tens l'última versió (el servidor té la compilació %d).", updBuild);
+  else if (updState == 2) snprintf(t, sizeof(t), "Hi ha la versió %s disponible (compilació %d).%s%s", updName, updBuild, updNotes[0] ? "\n" : "", updNotes);
   else if (updState == 3) snprintf(t, sizeof(t), "S'ha instal·lat la versió %s.\nTanca l'Escriptori amb la X i torna'l a obrir.", updName);
   else snprintf(t, sizeof(t), "No s'ha pogut completar. Torna-ho a provar amb el Wi-Fi connectat.");
   SetFont(fText, BLACK); DrawTextRect(U / 2, y, SW - U, 5 * U, t, ALIGN_LEFT | VALIGN_TOP); y += 5 * U + U / 2;
@@ -353,6 +535,8 @@ static void draw(int full) {
       case V_STORE: v_store(v); break;
       case V_PKG: v_pkg(v); break;
       case V_SYSTEM: v_system(v); break;
+      case V_QUICK: v_quick(v); break;
+      case V_HOME: v_home(v); break;
     }
     if (v->page < 0) v->page = 0;
     footer(v->page);
@@ -373,6 +557,12 @@ static View *push_view(int mod, int type, int a, int b, int sel, const char *ter
 static void h_push(int type, int a, int b, int sel, const char *term) { push_view(stack[depth - 1].mod, type, a, b, sel, term); draw(1); }
 static void h_pop(void) { if (depth > 1) depth--; }
 
+static void open_module(int i) {
+  View *nv;
+  if (i < 0 || i >= nmods) return;
+  nv = push_view(i, 0, 0, 0, 0, NULL);
+  if (mods[i].m->fn_open) mods[i].m->fn_open(nv);
+}
 static void act(int a, int arg) {
   View *v = &stack[depth - 1];
   static char msg[200];
@@ -388,7 +578,7 @@ static void act(int a, int arg) {
     case A_EXIT: CloseApp(); break;
     case A_APP:
       if (arg < 0) break;
-      if (arg < nmods) { View *nv = push_view(arg, 0, 0, 0, 0, NULL); if (mods[arg].m->fn_open) mods[arg].m->fn_open(nv); draw(1); }
+      if (arg < nmods) { open_module(arg); draw(1); }
       else if (arg == nmods) { push_view(-1, V_STORE, 0, 0, 0, NULL); draw(1); }
       else if (arg == nmods + 1) { push_view(-1, V_SYSTEM, 0, 0, 0, NULL); draw(1); }
       else ext_launch(arg - nmods - 2);
@@ -407,6 +597,29 @@ static void act(int a, int arg) {
     case A_UPD_CHECK: upd_check(); draw(1); break;
     case A_UPD_INSTALL: upd_install(); draw(1); break;
     case A_WIFI: NetConnect(NULL); draw(1); break;
+    case A_QUICK: if (!(v->mod < 0 && v->type == V_QUICK)) { push_view(-1, V_QUICK, 0, 0, 0, NULL); draw(1); } break;
+    case A_WIDGET:
+      if (arg < 0 || arg >= nwl) break;
+      if (wl[arg].mod >= 0) open_module(wl[arg].mod);
+      else if (!strcmp(wl[arg].key, "base.rellotge") && mod_find("rellotge") >= 0) open_module(mod_find("rellotge"));
+      else push_view(-1, V_SYSTEM, 0, 0, 0, NULL);
+      draw(1);
+      break;
+    case A_QWIFI: if (QueryNetwork() & NET_WIFIREADY) NetDisconnect(); else NetConnect(NULL); draw(1); break;
+    case A_QLIGHT_DN: case A_QLIGHT_UP: {
+      int cur = light_get(), nv;
+      if (cur < 0) { say("Aquest lector no permet regular la llum des d'aquí."); draw(0); break; }
+      nv = cur + (a == A_QLIGHT_UP ? 10 : -10); if (nv < 0) nv = 0; if (nv > 100) nv = 100;
+      if (nv > 0) SetFrontlightEnabled(1);
+      SetFrontlightState(nv);
+      if (nv == 0) SetFrontlightEnabled(0);
+      draw(0);
+    } break;
+    case A_QCLEAN: draw(1); break;
+    case A_QGO: depth--; push_view(-1, arg == 1 ? V_STORE : arg == 2 ? V_HOME : V_SYSTEM, 0, 0, 0, NULL); draw(1); break;
+    case A_HE_TOGGLE: if (arg >= 0 && arg < nwl) { home_toggle(arg); draw(0); } break;
+    case A_HE_UP: if (arg >= 0 && arg < nwl) { home_move(arg, -1); draw(0); } break;
+    case A_HE_DN: if (arg >= 0 && arg < nwl) { home_move(arg, 1); draw(0); } break;
   }
 }
 

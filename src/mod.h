@@ -11,7 +11,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#define ESC_API 1
+#define ESC_API 2
 #define MOD_TICK 1                 /* el paquet vol redibuixar-se cada minut */
 #define NOTELEN 400
 #define MAXL 300
@@ -33,6 +33,12 @@ typedef struct Host {
   void (*confirm)(const char *title, const char *text, const char *yes, void (*fn)(void));
   char *(*net_get)(const char *url, int *len, int timeout);
 } Host;
+/* Ranura de la barra d'estat: un indicador petit. width() retorna l'amplada en píxels (0 = ara no es mostra);
+   draw() el dibuixa dins el rectangle x,y,w,h amb el color fg. S'avalua a cada refresc de la barra: ha de ser barat. */
+typedef struct StatusItem { const char *id; int (*width)(int h); void (*draw)(int x, int y, int w, int h, int fg); } StatusItem;
+/* Widget de l'escriptori. cw = columnes que ocupa (2 o 4 de 4); ch = alçada en unitats de 3U. El sistema dibuixa la
+   targeta; draw() omple l'interior x,y,w,h. En tocar-lo s'obre el paquet. */
+typedef struct Widget { const char *id, *name; int cw, ch; void (*draw)(int x, int y, int w, int h); } Widget;
 typedef struct Module {
   int api; const char *id; const char *name; int flags;
   void (*fn_icon)(int x, int y, int s);
@@ -40,10 +46,39 @@ typedef struct Module {
   void (*fn_action)(View *v, int act, int arg);     /* accions amb codi >= 100 */
   int  (*fn_back)(View *v);                         /* 1 = el paquet ja ha gestionat «enrere» */
   void (*fn_open)(View *v);                         /* en obrir-lo des de l'escriptori */
+  int nstatus; const StatusItem *status;            /* ranures de la barra d'estat (opcional) */
+  int nwidgets; const Widget *widgets;              /* widgets de l'escriptori (opcional) */
 } Module;
 
 #define UNUSED __attribute__((unused))
-static UNUSED void box(int x, int y, int w, int h) { DrawRect(x, y, w, h, BLACK); DrawRect(x + 1, y + 1, w - 2, h - 2, BLACK); }
+/* ───────────── sistema de disseny ─────────────
+   Formes simples sobre fons blanc: targetes de cantonades arrodonides, icones de línia pròpies. */
+static UNUSED void rfill(int x, int y, int w, int h, int r, int col) {
+  int k;
+  if (w <= 0 || h <= 0) return;
+  if (r * 2 > h) r = h / 2;
+  if (r * 2 > w) r = w / 2;
+  if (r < 2) { FillArea(x, y, w, h, col); return; }
+  if (h - 2 * r > 0) FillArea(x, y + r, w, h - 2 * r, col);
+  for (k = 0; k < r; k++) {
+    double dy = r - k - 0.5; int inset = r - (int)(sqrt((double)r * r - dy * dy) + 0.5);
+    FillArea(x + inset, y + k, w - 2 * inset, 1, col);
+    FillArea(x + inset, y + h - 1 - k, w - 2 * inset, 1, col);
+  }
+}
+static UNUSED int ui_r(int w, int h) { int m = w < h ? w : h, r = m / 5; return r < 3 ? 3 : r > 16 ? 16 : r; }
+/* t = gruix de la vora (0 = sense vora), fg = color de la vora, bg = color de l'interior */
+static UNUSED void rcard(int x, int y, int w, int h, int r, int t, int fg, int bg) {
+  rfill(x, y, w, h, r, fg);
+  if (t > 0) rfill(x + t, y + t, w - 2 * t, h - 2 * t, r > t ? r - t : 0, bg);
+}
+enum { UI_LINE, UI_SOFT, UI_SOLID };
+static UNUSED void ui_card(int x, int y, int w, int h, int style) {
+  int r = ui_r(w, h);
+  if (style == UI_SOLID) rcard(x, y, w, h, r, 0, BLACK, BLACK);
+  else rcard(x, y, w, h, r, 2, style == UI_SOFT ? LGRAY : BLACK, WHITE);
+}
+static UNUSED void box(int x, int y, int w, int h) { ui_card(x, y, w, h, UI_LINE); }
 static UNUSED void disc(int cx, int cy, int r, int col) {
   int dy;
   for (dy = -r; dy <= r; dy++) { int h = (int)(sqrt((double)(r * r - dy * dy)) + 0.5); if (h > 0) FillArea(cx - h, cy + dy, 2 * h, 1, col); }
@@ -52,6 +87,59 @@ static UNUSED void thick(int x1, int y1, int x2, int y2, int t, int col) {
   int dx = x2 - x1, dy = y2 - y1, n = abs(dx) > abs(dy) ? abs(dx) : abs(dy), i;
   if (n < 1) n = 1;
   for (i = 0; i <= n; i++) FillArea(x1 + dx * i / n - t / 2, y1 + dy * i / n - t / 2, t, t, col);
+}
+
+/* Icones de línia: cx,cy = centre; r = meitat de la mida; col = color. */
+static UNUSED void ic_arc(int cx, int cy, int R, double a0, double a1, int t, int col) {   /* angles en graus des de la vertical */
+  double len = (a1 - a0) * 3.14159265 / 180.0 * R; int n = (int)(len / (t > 1 ? t * 0.7 : 1)) + 1, i;
+  for (i = 0; i <= n; i++) {
+    double a = (a0 + (a1 - a0) * i / n) * 3.14159265 / 180.0;
+    FillArea(cx + (int)(R * sin(a) + (sin(a) < 0 ? -0.5 : 0.5)) - t / 2, cy - (int)(R * cos(a) + (cos(a) < 0 ? -0.5 : 0.5)) - t / 2, t, t, col);
+  }
+}
+/* level 0..3: arcs plens; la resta en offc. slash = ratlla diagonal (apagat). */
+static UNUSED void ic_wifi(int cx, int cy, int r, int level, int onc, int offc, int slash) {
+  int t = r / 6 > 2 ? r / 6 : 2, ox = cx, oy = cy + r * 6 / 10, i;
+  for (i = 0; i < 3; i++) ic_arc(ox, oy, r * (i + 1) * 5 / 10 + r / 5, -48, 48, t, i < level ? onc : offc);
+  { int d = t + 1; FillArea(ox - d / 2, oy - d / 2, d, d, level > 0 || !slash ? onc : offc); }
+  if (slash) { thick(cx - r, cy - r + r / 4, cx + r, cy + r, t, offc); }
+}
+static UNUSED void ic_sun(int cx, int cy, int r, int col) {
+  int k, t = r / 8 > 2 ? r / 8 : 2;
+  disc(cx, cy, r * 4 / 10, col);
+  for (k = 0; k < 8; k++) {
+    double a = k * 3.14159265 / 4;
+    thick(cx + (int)(sin(a) * r * 0.65), cy - (int)(cos(a) * r * 0.65), cx + (int)(sin(a) * r), cy - (int)(cos(a) * r), t, col);
+  }
+}
+static UNUSED void ic_refresh(int cx, int cy, int r, int col) {
+  int t = r / 6 > 2 ? r / 6 : 2, R = r * 8 / 10, hx, hy, k;
+  ic_arc(cx, cy, R, 20, 300, t, col);
+  hx = cx + (int)(R * sin(20 * 3.14159265 / 180)); hy = cy - (int)(R * cos(20 * 3.14159265 / 180));
+  for (k = 0; k < r / 2; k++) FillArea(hx - k, hy - r / 2 + k + r / 8, 2 * k + 1, 1, col);
+}
+static UNUSED void ic_check(int cx, int cy, int r, int col) {
+  int t = r / 5 > 2 ? r / 5 : 3;
+  thick(cx - r * 7 / 10, cy, cx - r / 5, cy + r / 2, t, col); thick(cx - r / 5, cy + r / 2, cx + r * 7 / 10, cy - r / 2, t, col);
+}
+static UNUSED void ic_chevron(int cx, int cy, int r, int col) {
+  int t = r / 4 > 2 ? r / 4 : 3;
+  thick(cx - r / 3, cy - r / 2, cx + r / 3, cy, t, col); thick(cx + r / 3, cy, cx - r / 3, cy + r / 2, t, col);
+}
+static UNUSED void ic_plus(int cx, int cy, int r, int col) { int t = r / 4 > 2 ? r / 4 : 3; FillArea(cx - r / 2, cy - t / 2, r, t, col); FillArea(cx - t / 2, cy - r / 2, t, r, col); }
+static UNUSED void ic_minus(int cx, int cy, int r, int col) { int t = r / 4 > 2 ? r / 4 : 3; FillArea(cx - r / 2, cy - t / 2, r, t, col); }
+static UNUSED void ic_grid(int cx, int cy, int r, int col) {
+  int g = r / 5 > 2 ? r / 5 : 2, c = (r * 2 - g) / 2, i;
+  for (i = 0; i < 4; i++) rfill(cx - r + (i % 2) * (c + g), cy - r + (i / 2) * (c + g), c, c, c / 4, col);
+}
+/* fletxa vertical; down = 1 apunta avall. y = dalt, h = alçada. */
+static UNUSED void ic_arrow(int cx, int y, int h, int down, int col) {
+  int hh = h * 2 / 5, t = h / 8 > 2 ? h / 8 : 2, k;
+  FillArea(cx - t / 2, y, t, h, col);
+  for (k = 0; k < hh; k++) {
+    int half = down ? hh - 1 - k : k, ry = down ? y + h - hh + k : y + k;
+    FillArea(cx - half, ry, 2 * half + 1, 1, col);
+  }
 }
 
 #ifdef ESC_MODULE
@@ -145,5 +233,6 @@ static UNUSED char *read_file(const char *path) {
   return b;
 }
 
+#include "ui.h"
 #endif
 #endif

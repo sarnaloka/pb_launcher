@@ -79,6 +79,19 @@ static void v_weather(View *v) {
   }
   free(b);
 }
+/* ───── widget ───── */
+static void w_today(int x, int y, int w, int h) {
+  char *b = read_file(WXFILE), t[80] = "sense dades"; const char *cur, *p;
+  if (b && (cur = jkey(b, "current"))) {
+    double temp = -9999; int wc = -1;
+    if ((p = jkey(cur, "temperature_2m"))) temp = strtod(p, NULL);
+    if ((p = jkey(cur, "weather_code")) || (p = jkey(cur, "weathercode"))) wc = (int)strtod(p, NULL);
+    if (temp > -999) snprintf(t, sizeof(t), "%d° · %s", (int)floor(temp + 0.5), wc >= 0 ? wx_desc(wc) : "");
+  }
+  free(b);
+  ui_lv(x, y, w, h, "El temps · Barcelona", t);
+}
+static const Widget WG[] = { { "avui", "El temps d'avui", 2, 1, w_today } };
 static void mod_icon(int x, int y, int s) {
   int i, j; (void)i; (void)j;
       thick(x + s / 2, y + s / 8, x + s / 2, y + s * 7 / 8, s / 20 > 2 ? s / 20 : 3, BLACK); thick(x + s / 8, y + s / 2, x + s * 7 / 8, y + s / 2, s / 20 > 2 ? s / 20 : 3, BLACK);
@@ -99,5 +112,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "temps", "El temps", 0, mod_icon, mod_draw, mod_action, NULL, mod_open };
+static Module M = { ESC_API, "temps", "El temps", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

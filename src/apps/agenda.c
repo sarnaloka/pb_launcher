@@ -78,6 +78,19 @@ static void v_day(View *v) {
   }
   if (n) { SetFont(fSmall, BLACK); DrawTextRect(U / 2, y + U / 4, SW - U, U + U / 4, "Toca un esdeveniment per esborrar-lo.", ALIGN_LEFT | VALIGN_MIDDLE); }
 }
+/* ───── widget ───── */
+static void w_next(int x, int y, int w, int h) {
+  time_t now = time(NULL); struct tm tm = *localtime(&now); int today = (tm.tm_year + 1900) * 10000 + (tm.tm_mon + 1) * 100 + tm.tm_mday, i; char t[300] = "Cap esdeveniment proper";
+  st_load(&agenda);
+  for (i = 0; i < agenda.n; i++) {
+    int date = atoi(agenda.it[i]); const char *txt = strchr(agenda.it[i], '\t');
+    if (date < today) continue;
+    snprintf(t, sizeof(t), "%02d/%02d   %s", date % 100, date / 100 % 100, txt ? txt + 1 : "");
+    break;
+  }
+  ui_lv(x, y, w, h, "Agenda · proper esdeveniment", t);
+}
+static const Widget WG[] = { { "proper", "Proper esdeveniment", 4, 1, w_next } };
 static void mod_icon(int x, int y, int s) {
   int i, j; (void)i; (void)j;
       FillArea(x + s / 6, y + s / 6, s * 2 / 3, s * 2 / 3, BLACK); FillArea(x + s / 6 + 4, y + s / 6 + s / 6, s * 2 / 3 - 8, s / 2 - 4, WHITE);
@@ -102,5 +115,5 @@ static void mod_open(View *v) {
   (void)v;
   { time_t now = time(NULL); struct tm *tm = localtime(&now); v->a = (tm->tm_year + 1900) * 12 + tm->tm_mon; }
 }
-static Module M = { ESC_API, "agenda", "Agenda", 0, mod_icon, mod_draw, mod_action, NULL, mod_open };
+static Module M = { ESC_API, "agenda", "Agenda", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }
