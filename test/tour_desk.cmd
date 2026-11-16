@@ -1,5 +1,5 @@
 shot d1.txt
-tap Calculadora
+tapp Calculadora
 tap 7
 tap ×
 tap 6
@@ -20,7 +20,7 @@ tap DEL
 tap ±
 tap %
 xy 1010 149
-tap Notes
+tapp Notes
 kbd Comprar la T-usual abans de dijous
 tap Nova nota
 kbd   Trucar a l'Anna: el bus B25 passa per davant del museu cada vint minuts, quedem a la parada   
@@ -35,10 +35,10 @@ tap Esborra
 shot d5.txt
 xy 62 149
 xy 62 149
-tap Rellotge
+tapp Rellotge
 shot d6.txt
 xy 1010 149
-tap Bus AMB
+tapp Bus AMB
 shot d7.txt
 kbd museu viver
 tap Cerca una parada

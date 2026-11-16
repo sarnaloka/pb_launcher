@@ -1,5 +1,5 @@
 shot q1.txt
-tap Fitxers
+tapp Fitxers
 shot q2.txt
 tap Llibres
 shot q3.txt
@@ -23,7 +23,7 @@ tap Comprar pa
 shot q6.txt
 tap Esborra les fetes
 xy 1010 149
-tap Conversor
+tapp Conversor
 kbd 26,2
 xy 500 480
 tap milles
@@ -32,7 +32,7 @@ tap Temp.
 tap °F
 tap Pes
 xy 1010 149
-tap Agenda
+tapp Agenda
 shot q8.txt
 tap 20
 kbd Dentista a les 10
@@ -49,10 +49,10 @@ shot q10.txt
 tap 20
 tap Dentista
 xy 1010 149
-tap Sudoku
+tapp Sudoku
 shot q11.txt
 xy 1010 149
-tap Buscamines
+tapp Buscamines
 xy 600 700
 shot q12.txt
 tap Mode: destapar
@@ -62,12 +62,12 @@ xy 300 300
 xy 800 1000
 tap Joc nou
 xy 1010 149
-tap El temps
+tapp El temps
 shot q13.txt
 tap Actualitza (cal Wi-Fi)
 shot q14.txt
 xy 1010 149
-tap Notícies
+tapp Notícies
 tap Actualitza (Wi-Fi)
 shot q15.txt
 tap Pluja

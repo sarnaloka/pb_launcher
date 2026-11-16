@@ -1,4 +1,4 @@
-tap Bus AMB
+tapp Bus AMB
 shot s1.txt
 kbd museu viver
 tap Cerca una parada
@@ -19,7 +19,7 @@ tap Festius
 tap Dissabte
 tap Desa l'horari en PDF
 xy 1010 149
-tap Bus AMB
+tapp Bus AMB
 shot s7.txt
 tap Tria per línia
 shot s8.txt
@@ -37,7 +37,7 @@ key 25
 key 25
 shot s10.txt
 xy 1010 149
-tap Bus AMB
+tapp Bus AMB
 kbd zzzz
 tap Cerca una parada
 shot s11.txt

@@ -9,7 +9,7 @@ batt 14
 tick
 echo --- bateria baixa: apareix la campana amb 1
 shot av_1.txt
-tap Notícies
+tapp Notícies
 tap Actualitza
 echo --- després de Notícies: 2 avisos
 xy 600 40

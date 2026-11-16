@@ -1,5 +1,5 @@
 # Cal un sim/flash nou (sense escriptori_temps_*) i test/weather.json i test/geocode.json copiats a sim/net/.
-tap El temps
+tapp El temps
 shot t1.txt
 tap Actualitza (cal Wi-Fi)
 shot t2.txt

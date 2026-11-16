@@ -42,7 +42,15 @@ int OpenBook(const char *path, const char *p, int f) { (void)p; (void)f; printf(
 static void shot(const char *name) { FILE *f = fopen(name, "w"); int i; for (i = 0; i < nops; i++) { Op *o = &ops[i]; fprintf(f, "%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", o->kind, o->x, o->y, o->w, o->h, o->color, o->size, o->bold, o->flags, o->text); } fclose(f); }
 void InkViewMain(iv_handler h) { char ln[300]; H = h; h(EVT_INIT, 0, 0); h(EVT_SHOW, 0, 0);
   while (fgets(ln, sizeof(ln), stdin)) { char *nl = strchr(ln, '\n'); int i, x, y; if (nl) *nl = 0;
-    if (!strncmp(ln, "tap ", 4)) { int found = 0; for (i = nops - 1; i >= 0; i--) if (ops[i].kind == 'T' && !strcmp(ops[i].text, ln + 4)) { found = 1; h(EVT_POINTERUP, ops[i].x + ops[i].w / 2, ops[i].y + ops[i].h / 2); break; }
+    if (!strncmp(ln, "tapp ", 5)) {          /* com «tap», però passa pàgina (fins a 5 cops) si no ho troba */
+      int k, found = 0;
+      for (k = 0; k < 6 && !found; k++) {
+        for (i = nops - 1; i >= 0 && !found; i--) if (ops[i].kind == 'T' && !strcmp(ops[i].text, ln + 5)) { found = 1; h(EVT_POINTERUP, ops[i].x + ops[i].w / 2, ops[i].y + ops[i].h / 2); }
+        if (!found && k < 5) h(EVT_KEYPRESS, 0x19, 0);
+      }
+      if (!found) printf("NOT FOUND: %s\n", ln + 5);
+    }
+    else if (!strncmp(ln, "tap ", 4)) { int found = 0; for (i = nops - 1; i >= 0; i--) if (ops[i].kind == 'T' && !strcmp(ops[i].text, ln + 4)) { found = 1; h(EVT_POINTERUP, ops[i].x + ops[i].w / 2, ops[i].y + ops[i].h / 2); break; }
       if (!found) for (i = nops - 1; i >= 0; i--) if (ops[i].kind == 'T' && strstr(ops[i].text, ln + 4)) { found = 1; h(EVT_POINTERUP, ops[i].x + ops[i].w / 2, ops[i].y + ops[i].h / 2); break; }
       if (!found) { printf("NOT FOUND: %s\n", ln + 4); } }
     else if (sscanf(ln, "xy %d %d", &x, &y) == 2) h(EVT_POINTERUP, x, y);
