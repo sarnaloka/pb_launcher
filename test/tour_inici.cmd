@@ -1,3 +1,4 @@
+# Cal un sim/flash nou: canvia la selecció de widgets de l'inici i altera els altres guions.
 tap Paquets
 tap Actualitza el catàleg
 tap Instal·la-ho tot

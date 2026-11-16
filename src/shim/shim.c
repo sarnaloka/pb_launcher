@@ -19,8 +19,9 @@ char *DrawTextRect(int x, int y, int w, int h, const char *s, int flags) { Op *o
 void FullUpdate(void) { updates++; } void SoftUpdate(void) { updates++; }
 int GetBatteryPower(void) { return 62; } int IsCharging(void) { return 0; } int QueryNetwork(void) { const char *e = getenv("NET"); return e ? (int)strtol(e, NULL, 0) : 0x0202; }
 void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int GetNetSignalQuality(void) { return 3; }
-void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { (void)n; (void)tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { (void)tp; } static void shot(const char *name);
-void PartialUpdate(int x, int y, int w, int h) { static int n; (void)x; (void)y; (void)w; (void)h; if (getenv("PUSHOT")) { char fn[64]; snprintf(fn, sizeof(fn), "pu%d.txt", ++n); shot(fn); } }
+static iv_timerproc tickProc;
+void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { (void)n; tickProc = tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { if (tickProc == tp) tickProc = NULL; } static void shot(const char *name);
+void PartialUpdate(int x, int y, int w, int h) { static int n; if (getenv("PULOG")) printf("PU %d %d %d %d\n", x, y, w, h); if (getenv("PUSHOT")) { char fn[64]; snprintf(fn, sizeof(fn), "pu%d.txt", ++n); shot(fn); } }
 int NetConnect(const char *n) { (void)n; return 0; }
 int NetDisconnect(void) { printf("NetDisconnect\n"); return 0; }
 static int flState = 30, flOn = 1; int GetFrontlightState(void) { return getenv("NOLIGHT") ? INT_MIN : flState; } void SetFrontlightState(int s) { printf("light %d\n", s); flState = s; } int GetFrontlightEnabled(void) { return flOn; } void SetFrontlightEnabled(int e) { flOn = e; }
@@ -45,5 +46,6 @@ void InkViewMain(iv_handler h) { char ln[300]; H = h; h(EVT_INIT, 0, 0); h(EVT_S
     else if (!strncmp(ln, "kbd ", 4)) snprintf(pendingKbd, sizeof(pendingKbd), "%s", ln + 4);
     else if (sscanf(ln, "dlg %d", &x) == 1) dlgBtn = x;
     else if (!strncmp(ln, "shot ", 5)) shot(ln + 5);
+    else if (!strcmp(ln, "tick")) { if (tickProc) tickProc(); }
   }
   printf("updates %d\n", updates); h(EVT_EXIT, 0, 0); }

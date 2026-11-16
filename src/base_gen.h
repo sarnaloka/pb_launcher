@@ -98,9 +98,10 @@ static void statusbar(int withHits) {
 }
 static void draw(int full);
 static int tick_redraw(void);
+static int desk_tick(void);
 static void clock_tick(void) {
   time_t now = time(NULL);
-  if (tick_redraw()) draw(0);
+  if (tick_redraw()) { if (!desk_tick()) draw(0); }
   else { statusbar(0); PartialUpdate(0, 0, SW, SB); }
   SetWeakTimer("busamb_clock", clock_tick, (int)(61 - now % 60) * 1000);
 }

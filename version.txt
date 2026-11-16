@@ -1,5 +1,5 @@
-4
+5
 137132
-db645a5f
-Versió 1.0: escriptori amb widgets, tauler ràpid tocant la barra d'estat, barra amb ranures i disseny nou. Després d'actualitzar, obre Paquets i prem «Instal·la i actualitza-ho tot».
-1.0
+790b525f
+Versió 1.1: l'escriptori ja no refresca tota la pantalla cada minut; només la barra d'estat i el rellotge.
+1.1

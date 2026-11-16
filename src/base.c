@@ -4,8 +4,8 @@
 #include <sys/statvfs.h>
 #include <limits.h>
 
-#define APP_BUILD 4
-#define APP_VERNAME "1.0"
+#define APP_BUILD 5
+#define APP_VERNAME "1.1"
 #define UPD_BASE "https://raw.githubusercontent.com/sarnaloka/pb_launcher/main/"
 #define SYSDIR FLASHDIR "/system/escriptori"
 #define PKGDIR SYSDIR "/packages"
@@ -251,6 +251,7 @@ static const char *MONTHB[12] = { "de gener", "de febrer", "de març", "d'abril"
 typedef struct { char key[64]; const char *name; int cw, ch, mod; void (*draw)(int, int, int, int); } WEnt;
 #define MAXW 48
 static WEnt wl[MAXW]; static int nwl;
+static int homeRectY, homeRectH, homeHasClock;   /* zona dels widgets, per refrescar-la sola cada minut */
 static char homeKeys[MAXW][64]; static int nHome, homeLoaded;
 #define HOMECFG CFG "escriptori_inici.txt"
 static void w_clock(int x, int y, int w, int h) {
@@ -321,9 +322,10 @@ static int home_draw(int y0, int maxh) {
     if (col >= 4) { row++; col = 0; }
   }
   nrows = col > 0 ? row + 1 : row;
+  homeHasClock = 0; homeRectY = y0; homeRectH = 0;
   for (i = 0; i < nrows; i++) {
     if (used + rowH[i] > maxh) break;
-    rowY[i] = y0 + used; used += rowH[i] + gap; shown = i + 1;
+    rowY[i] = y0 + used; used += rowH[i] + gap; shown = i + 1; homeRectH = used - gap;
   }
   for (i = 0; i < n; i++) {
     const WEnt *e = &wl[idx[i]]; int r = rowOf[i], x, w, h;
@@ -331,6 +333,7 @@ static int home_draw(int y0, int maxh) {
     h = rowH[r];
     if (e->cw == 4) { x = U / 2; w = W; }
     else { w = (W - gap) / 2; x = colOf[i] == 0 ? U / 2 : U / 2 + W - w; }
+    if (!strcmp(e->key, "base.rellotge")) homeHasClock = 1;
     ui_card(x, rowY[r], w, h, UI_LINE);
     if (e->draw) e->draw(x + U / 2, rowY[r] + U / 3, w - U, h - 2 * (U / 3));
     add_hit(x, rowY[r], w, h, A_WIDGET, idx[i]);
@@ -521,7 +524,7 @@ static int tick_redraw(void) {
   if (v->mod >= 0) return v->mod < nmods && (mods[v->mod].m->flags & MOD_TICK);
   return v->type == V_DESK;
 }
-static void draw(int full) {
+static void render(void) {
   View *v = &stack[depth - 1];
   int pass;
   if (v->mod >= nmods) { depth = 1; v = &stack[0]; }
@@ -542,8 +545,20 @@ static void draw(int full) {
     footer(v->page);
     if (v->page == before) break;
   }
+}
+static void draw(int full) {
+  render();
   if (full) FullUpdate(); else SoftUpdate();
   if (pendMsg) { const char *m = pendMsg; pendMsg = NULL; Message(ICON_INFORMATION, "Escriptori", m, 4000); }
+}
+/* Tic d'un minut a l'escriptori: només es refresca la barra d'estat i, si n'hi ha, la zona del rellotge (no tota la pantalla). */
+static int desk_tick(void) {
+  View *v = &stack[depth - 1];
+  if (v->mod >= 0 || v->type != V_DESK) return 0;
+  render();
+  PartialUpdate(0, 0, SW, SB);
+  if (homeHasClock && homeRectH > 0) PartialUpdate(0, homeRectY, SW, homeRectH);
+  return 1;
 }
 static View *push_view(int mod, int type, int a, int b, int sel, const char *term) {
   View *v;
@@ -605,7 +620,7 @@ static void act(int a, int arg) {
       else push_view(-1, V_SYSTEM, 0, 0, 0, NULL);
       draw(1);
       break;
-    case A_QWIFI: if (QueryNetwork() & NET_WIFIREADY) NetDisconnect(); else NetConnect(NULL); draw(1); break;
+    case A_QWIFI: if (QueryNetwork() & NET_WIFIREADY) NetDisconnect(); else NetConnect(NULL); draw(0); break;
     case A_QLIGHT_DN: case A_QLIGHT_UP: {
       int cur = light_get(), nv;
       if (cur < 0) { say("Aquest lector no permet regular la llum des d'aquí."); draw(0); break; }
