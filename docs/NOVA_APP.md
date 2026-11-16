@@ -93,3 +93,13 @@ Cada peça del sistema (hora, bateria, Wi-Fi, xarxa, avisos) té una signatura d
 - **Icona del paquet**: de línia, amb el gruix comú `ic_t(s)`. Fes servir `ol()` (rectangle arrodonit de contorn), `ring()`, `rays()` i `thick()`; negre sobre blanc, ocupant uns 2/3 de la mida `s`. El sistema hi posa la rajola al voltant.
 - **Botons**: `button()` és una píndola; `inv = 1` per a l'acció principal (negre).
 - **Compatibilitat**: declara `ESC_API_MIN` al `Module` si no fas servir res de l'API 3; així el paquet també carrega en un sistema base anterior.
+
+## Paquets amb feina de fons (ESC_API 4)
+
+Un paquet pot tenir un temporitzador propi (`SetWeakTimer("<id>_poll", fn, ms)`, d'un sol tret: torna'l a armar dins `fn`) que continua mentre l'Escriptori és obert, encara que es vegi una altra pantalla. Regles:
+
+- `H->front()` retorna l'id del paquet que es veu. Crida `H->redraw(0)` només si ets tu; si no, fes servir `H->notify(...)` i `H->status_changed()`.
+- Registra una neteja amb `H->on_unload("<id>", fn)`: el sistema la crida abans de descarregar el paquet (actualització o desinstal·lació). Hi has d'aturar el temporitzador (`ClearTimer`) i tancar connexions; si no, el lector es penjarà.
+- No redibuixis mentre tens un teclat o un diàleg obert.
+- Tot això només existeix si `H->api >= 4`: comprova-ho i mostra un missatge si el sistema és anterior. Vegeu `src/apps/xat.c` (servidor web local per al xat).
+- Al simulador, `poll` executa el temporitzador i `sleep N` espera N ms (`test/tour_xat.cmd`).

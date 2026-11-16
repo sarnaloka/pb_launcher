@@ -49,16 +49,26 @@ static int mod_load(const char *id) {
   if (!dl) return -1;
   fn = (Module *(*)(const Host *))dlsym(dl, "escriptori_module");
   m = fn ? fn(&host) : NULL;
-  if (!m || (m->api != ESC_API && m->api != ESC_API_MIN) || !m->fn_draw || !m->name) { dlclose(dl); return -2; }
+  if (!m || m->api < ESC_API_MIN || m->api > ESC_API || !m->fn_draw || !m->name) { dlclose(dl); return -2; }
   drop_module_views();
   for (i = nmods; i > 0 && strcasecmp(mods[i - 1].m->name, m->name) > 0; i--) mods[i] = mods[i - 1];
   mods[i].dl = dl; mods[i].m = m; snprintf(mods[i].id, sizeof(mods[i].id), "%s", id);
   nmods++;
   return 0;
 }
+/* Funcions de neteja que els paquets registren amb Host.on_unload: es criden abans de descarregar-los. */
+static struct { char id[48]; void (*fn)(void); } unl[16]; static int nunl;
+static void h_on_unload(const char *id, void (*fn)(void)) {
+  int k;
+  if (!id || !fn) return;
+  for (k = 0; k < nunl; k++) if (!strcmp(unl[k].id, id)) { unl[k].fn = fn; return; }
+  if (nunl < 16) { snprintf(unl[nunl].id, sizeof(unl[nunl].id), "%s", id); unl[nunl].fn = fn; nunl++; }
+}
 static void mod_unload(int i) {
+  int k;
   if (i < 0 || i >= nmods) return;
   drop_module_views();
+  for (k = 0; k < nunl; k++) if (!strcmp(unl[k].id, mods[i].id)) { unl[k].fn(); unl[k] = unl[nunl - 1]; nunl--; break; }
   dlclose(mods[i].dl);
   memmove(&mods[i], &mods[i + 1], sizeof(Loaded) * (size_t)(nmods - i - 1));
   nmods--;
@@ -878,6 +888,7 @@ static View *push_view(int mod, int type, int a, int b, int sel, const char *ter
 }
 static void h_push(int type, int a, int b, int sel, const char *term) { push_view(stack[depth - 1].mod, type, a, b, sel, term); draw(1); }
 static void h_pop(void) { if (depth > 1) depth--; }
+static const char *h_front(void) { int m = depth > 0 ? stack[depth - 1].mod : -1; return m >= 0 && m < nmods ? mods[m].id : ""; }
 
 static void open_module(int i) {
   View *nv;
@@ -974,7 +985,7 @@ static int handler(int type, int par1, int par2) {
       host.api = ESC_API; host.SW = SW; host.SH = SH; host.U = U; host.SB = SB;
       host.fTitle = fTitle; host.fBold = fBold; host.fText = fText; host.fSmall = fSmall; host.fBig = fBig; host.fHuge = fHuge;
       host.pages = &pages; host.add_hit = add_hit; host.button = button; host.header = header; host.redraw = draw; host.push = h_push; host.pop = h_pop;
-      host.say = say; host.ask = ask; host.confirm = confirm; host.net_get = net_get_t; host.notify = avisos_add; host.status_changed = sb_refresh;
+      host.say = say; host.ask = ask; host.confirm = confirm; host.net_get = net_get_t; host.notify = avisos_add; host.status_changed = sb_refresh; host.front = h_front; host.on_unload = h_on_unload;
       depth = 1; memset(&stack[0], 0, sizeof(View)); stack[0].type = V_DESK; stack[0].mod = -1;
       mkdir(SYSDIR, 0777); mkdir(PKGDIR, 0777);
       mods_scan(); cat_load(); avisos_load();

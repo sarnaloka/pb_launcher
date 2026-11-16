@@ -12,3 +12,4 @@ buscamines|Buscamines|3|El clàssic, en un taulell de 9 per 9.
 temps|El temps|4|Previsió de set dies per a Barcelona i altres ciutats que triïs (cal Wi-Fi).
 noticies|Notícies|4|Titulars de canals RSS, desats per llegir sense connexió.
 lector|Lector|3|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
+xat|Xat|1|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).

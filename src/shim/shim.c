@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include "inkview.h"
 #include "afm.h"
 typedef struct { char kind; int x, y, w, h, color, size, bold, flags; char text[700]; } Op;
@@ -22,7 +23,8 @@ static int simBatt = 62, simChg, simNet = -1, simSig = 3;
 int GetBatteryPower(void) { return simBatt; } int IsCharging(void) { return simChg; } int QueryNetwork(void) { const char *e = getenv("NET"); return simNet >= 0 ? simNet : e ? (int)strtol(e, NULL, 0) : 0x0202; }
 void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int GetNetSignalQuality(void) { return simSig; }
 static iv_timerproc tickProc;
-void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { (void)n; tickProc = tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { if (tickProc == tp) tickProc = NULL; } static void shot(const char *name);
+static iv_timerproc pollProc;
+void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { if (n && strstr(n, "poll")) { pollProc = tp; return; } tickProc = tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { if (pollProc == tp) pollProc = NULL; if (tickProc == tp) tickProc = NULL; } static void shot(const char *name);
 void PartialUpdate(int x, int y, int w, int h) { static int n; if (getenv("PULOG")) printf("PU %d %d %d %d\n", x, y, w, h); if (getenv("PUSHOT")) { char fn[64]; snprintf(fn, sizeof(fn), "pu%d.txt", ++n); shot(fn); } }
 int NetConnect(const char *n) { (void)n; return 0; }
 int NetDisconnect(void) { printf("NetDisconnect\n"); return 0; }
@@ -49,6 +51,8 @@ void InkViewMain(iv_handler h) { char ln[300]; H = h; h(EVT_INIT, 0, 0); h(EVT_S
     else if (sscanf(ln, "dlg %d", &x) == 1) dlgBtn = x;
     else if (!strncmp(ln, "shot ", 5)) shot(ln + 5);
     else if (!strcmp(ln, "tick")) { if (tickProc) tickProc(); }
+    else if (!strcmp(ln, "poll")) { iv_timerproc p = pollProc; pollProc = NULL; if (p) p(); }
+    else if (sscanf(ln, "sleep %d", &x) == 1) usleep((useconds_t)x * 1000);
     else if (sscanf(ln, "batt %d", &x) == 1) simBatt = x;
     else if (sscanf(ln, "charge %d", &x) == 1) simChg = x;
     else if (!strncmp(ln, "net ", 4)) simNet = (int)strtol(ln + 4, NULL, 0);
