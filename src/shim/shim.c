@@ -19,7 +19,8 @@ char *DrawTextRect(int x, int y, int w, int h, const char *s, int flags) { Op *o
 void FullUpdate(void) { updates++; } void SoftUpdate(void) { updates++; }
 int GetBatteryPower(void) { return 62; } int IsCharging(void) { return 0; } int QueryNetwork(void) { const char *e = getenv("NET"); return e ? (int)strtol(e, NULL, 0) : 0x0202; }
 void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int GetNetSignalQuality(void) { return 3; }
-void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { (void)n; (void)tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { (void)tp; } void PartialUpdate(int x, int y, int w, int h) { (void)x; (void)y; (void)w; (void)h; }
+void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { (void)n; (void)tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { (void)tp; } static void shot(const char *name);
+void PartialUpdate(int x, int y, int w, int h) { static int n; (void)x; (void)y; (void)w; (void)h; if (getenv("PUSHOT")) { char fn[64]; snprintf(fn, sizeof(fn), "pu%d.txt", ++n); shot(fn); } }
 int NetConnect(const char *n) { (void)n; return 0; }
 void *QuickDownload(const char *url, int *retsize, int timeout) { char fn[600]; const char *m = strstr(url, "/main/"); FILE *f; long n; char *b, *q; (void)timeout;
   if (strstr(url, "open-meteo")) snprintf(fn, sizeof(fn), "net/weather.json"); else if (m) { snprintf(fn, sizeof(fn), "net/repo/%s", m + 6); if ((q = strchr(fn, '?'))) *q = 0; } else snprintf(fn, sizeof(fn), "net/feed.xml");

@@ -3,8 +3,8 @@
 #include <dlfcn.h>
 #include <sys/statvfs.h>
 
-#define APP_BUILD 2
-#define APP_VERNAME "0.8"
+#define APP_BUILD 3
+#define APP_VERNAME "0.9"
 #define UPD_BASE "https://raw.githubusercontent.com/sarnaloka/pb_launcher/main/"
 #define SYSDIR FLASHDIR "/system/escriptori"
 #define PKGDIR SYSDIR "/packages"

@@ -1,5 +1,5 @@
-2
+3
 120720
-2dcbc702
-Versió 0.8: sistema modular. Després d'actualitzar, obre Paquets i prem «Instal·la-ho tot» per recuperar les aplicacions.
-0.8
+f7ef1b90
+Versió 0.9: indicador de xarxa a la barra d'estat (fletxes de baixada i pujada al costat del Wi-Fi mentre es descarrega).
+0.9

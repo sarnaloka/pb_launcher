@@ -24,6 +24,18 @@ static void icon_exit(int cx, int cy, int r, int col) {
   int i, t = r / 5 > 1 ? r / 5 : 2;
   for (i = -r * 3 / 4; i <= r * 3 / 4; i++) { FillArea(cx + i - t / 2, cy + i - t / 2, t + 1, t + 1, col); FillArea(cx + i - t / 2, cy - i - t / 2, t + 1, t + 1, col); }
 }
+/* Activitat de xarxa: bits que la barra d'estat mostra com a fletxes (baixada / pujada) al costat del Wi-Fi. */
+enum { NETA_DOWN = 1, NETA_UP = 2 };
+static int netAct;
+/* Fletxa vertical de formes simples: eix + punta triangular. cx = centre, y = dalt, h = alçada. */
+static void icon_arrow(int cx, int y, int h, int down, int col) {
+  int hh = h * 2 / 5, t = h / 8 > 2 ? h / 8 : 2, k;
+  FillArea(cx - t / 2, y, t, h, col);
+  for (k = 0; k < hh; k++) {
+    int half = down ? hh - 1 - k : k, ry = down ? y + h - hh + k : y + k;
+    FillArea(cx - half, ry, 2 * half + 1, 1, col);
+  }
+}
 /* Barra d'estat a l'estil d'Android 2.3: fons negre; a l'esquerra, navegació (enrere, inici, surt);
    a la dreta, cobertura (o OFF / ECO), percentatge i icona de bateria, i hora. */
 static void statusbar(int withHits) {
@@ -85,6 +97,14 @@ static void statusbar(int withHits) {
       else FillArea(bx, by, sw, h, i < bars ? WHITE : DGRAY);
     }
     if (lab) { SetFont(fSmall, WHITE); w = StringWidth(lab); x -= w + U / 4; DrawTextRect(x, 0, w, SB, lab, ALIGN_RIGHT | VALIGN_MIDDLE); }
+  }
+  /* Fletxes de transferència: només es veuen mentre hi ha tràfic; la direcció activa en blanc i l'altra en gris. */
+  if (netAct) {
+    int ah = ih * 9 / 10, aw = ah * 4 / 5, ay = (SB - ah) / 2;
+    x -= U / 2 + aw;
+    icon_arrow(x + aw / 2, ay, ah, 0, (netAct & NETA_UP) ? WHITE : DGRAY);
+    x -= U / 3 + aw;
+    icon_arrow(x + aw / 2, ay, ah, 1, (netAct & NETA_DOWN) ? WHITE : DGRAY);
   }
 }
 static void draw(int full);
@@ -158,13 +178,22 @@ static unsigned long crc32_buf(const unsigned char *b, long n) {
   for (i = 0; i < n; i++) { c ^= b[i]; for (k = 0; k < 8; k++) c = (c >> 1) ^ (0xEDB88320UL & (0UL - (c & 1UL))); }
   return (c ^ 0xFFFFFFFFUL) & 0xFFFFFFFFUL;
 }
+/* Canvia l'indicador de transferència i refresca només la barra d'estat (sense animació: una sola actualització parcial). */
+static void net_activity(int flags) {
+  if (netAct == flags) return;
+  netAct = flags;
+  statusbar(0);
+  PartialUpdate(0, 0, SW, SB);
+}
 static char *net_get_t(const char *url, int *outLen, int timeout) {
   int size = 0; void *buf; char *copy;
   if (!(QueryNetwork() & NET_CONNECTED)) NetConnect(NULL);
   if (!(QueryNetwork() & NET_CONNECTED)) return NULL;
+  net_activity(NETA_DOWN);
   ShowHourglass();
   buf = QuickDownload(url, &size, timeout);
   HideHourglass();
+  net_activity(0);
   if (!buf || size <= 0) { if (buf) free(buf); return NULL; }
   copy = (char *)malloc((size_t)size + 1);
   if (copy) { memcpy(copy, buf, (size_t)size); copy[size] = 0; }
