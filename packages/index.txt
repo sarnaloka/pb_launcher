@@ -12,3 +12,4 @@ temps|El temps|4|22052|6184d2dd|Previsió de set dies per a Barcelona i altres c
 noticies|Notícies|4|17924|6f4371a5|Titulars de canals RSS, desats per llegir sense connexió.
 lector|Lector|3|46732|20397c62|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
 xat|Xat|1|22072|30266e0e|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
+ftp|FTP|1|26224|164d5710|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).
