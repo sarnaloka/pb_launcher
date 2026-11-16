@@ -34,7 +34,8 @@ typedef struct Host {
   char *(*net_get)(const char *url, int *len, int timeout);
 } Host;
 /* Ranura de la barra d'estat: un indicador petit. width() retorna l'amplada en píxels (0 = ara no es mostra);
-   draw() el dibuixa dins el rectangle x,y,w,h amb el color fg. S'avalua a cada refresc de la barra: ha de ser barat. */
+   draw() el dibuixa dins el rectangle x,y,w,h amb el color fg. La barra és NEGRA: fg és blanc i el fons, negre (rcard(..., fg, BLACK)).
+   Per quedar alineat amb la resta, centra'l verticalment i fes-lo d'una alçada d'uns 2/5 de h. S'avalua a cada refresc: ha de ser barat. */
 typedef struct StatusItem { const char *id; int (*width)(int h); void (*draw)(int x, int y, int w, int h, int fg); } StatusItem;
 /* Widget de l'escriptori. cw = columnes que ocupa (2 o 4 de 4); ch = alçada en unitats de 3U. El sistema dibuixa la
    targeta; draw() omple l'interior x,y,w,h. En tocar-lo s'obre el paquet. */
@@ -132,13 +133,13 @@ static UNUSED void ic_grid(int cx, int cy, int r, int col) {
   int g = r / 5 > 2 ? r / 5 : 2, c = (r * 2 - g) / 2, i;
   for (i = 0; i < 4; i++) rfill(cx - r + (i % 2) * (c + g), cy - r + (i / 2) * (c + g), c, c, c / 4, col);
 }
-/* Cercle de càrrega de 12 raigs que s'esvaeixen de fosc a clar (el cap és el raig de dalt). cx,cy = centre; r = radi. */
-static UNUSED void ic_spinner(int cx, int cy, int r, int col) {
+/* Cercle de càrrega de 12 raigs que s'esvaeixen: els 3 primers en c0, els 3 següents en c1 i la resta en c2.
+   El cap és el raig de dalt i la resta segueixen en sentit antihorari. cx,cy = centre; r = radi. */
+static UNUSED void ic_spinner(int cx, int cy, int r, int c0, int c1, int c2) {
   int k, t = r / 5 > 2 ? r / 5 : 2;
   for (k = 0; k < 12; k++) {
-    double a = -k * 3.14159265 / 6;                 /* el raig 0 és el de dalt; la resta, en sentit antihorari */
-    int c = k < 3 ? col : k < 6 ? DGRAY : LGRAY;
-    thick(cx + (int)(sin(a) * r * 0.5), cy - (int)(cos(a) * r * 0.5), cx + (int)(sin(a) * r), cy - (int)(cos(a) * r), t, c);
+    double a = -k * 3.14159265 / 6;
+    thick(cx + (int)(sin(a) * r * 0.5), cy - (int)(cos(a) * r * 0.5), cx + (int)(sin(a) * r), cy - (int)(cos(a) * r), t, k < 3 ? c0 : k < 6 ? c1 : c2);
   }
 }
 /* fletxa vertical; down = 1 apunta avall. y = dalt, h = alçada. */

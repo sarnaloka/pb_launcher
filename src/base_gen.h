@@ -10,50 +10,49 @@ static void button(int x, int y, int w, int h, const char *label, int inv, int a
   DrawTextRect(x + 4, y, w - 8, h, label, ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
   add_hit(x, y, w, h, act, arg);
 }
+/* ───── barra d'estat ─────
+   Negra, amb tot en línia del mateix gruix i icones de la mateixa alçada (ICH), centrades en una sola línia.
+   A l'esquerra, navegació en cel·les iguals; a la dreta, una llista d'elements amb una sola separació entre grups.
+   Els elements són StatusItem (vegeu mod.h): els del sistema (hora, bateria, Wi-Fi, càrrega) i els dels paquets. */
+#define ICH (SB * 4 / 10)                      /* alçada comuna de les icones */
+#define NAVT (SB / 14 > 3 ? SB / 14 : 3)       /* gruix comú de les icones de navegació */
 static void icon_back(int cx, int cy, int r, int col) {
-  int dy;
-  for (dy = -r; dy <= r; dy++) { int len = r - (dy < 0 ? -dy : dy); if (len > 0) FillArea(cx - r / 4 - len, cy + dy, len, 1, col); }
-  FillArea(cx - r / 4 - 1, cy - r / 3, r, 2 * (r / 3) + 1, col);
+  thick(cx - r, cy, cx + r, cy, NAVT, col);
+  thick(cx - r, cy, cx - r / 4, cy - r * 3 / 4, NAVT, col); thick(cx - r, cy, cx - r / 4, cy + r * 3 / 4, NAVT, col);
 }
 static void icon_home(int cx, int cy, int r, int col) {
-  int dy;
-  for (dy = 0; dy <= r; dy++) FillArea(cx - dy, cy - r + dy, 2 * dy + 1, 1, col);
-  FillArea(cx - r * 2 / 3, cy, 2 * (r * 2 / 3) + 1, r * 3 / 4, col);
-  FillArea(cx - r / 6, cy + r / 4, 2 * (r / 6) + 1, r / 2, WHITE);
+  thick(cx - r, cy - r / 8, cx, cy - r * 9 / 10, NAVT, col); thick(cx, cy - r * 9 / 10, cx + r, cy - r / 8, NAVT, col);
+  thick(cx - r * 7 / 10, cy - r / 8, cx - r * 7 / 10, cy + r * 9 / 10, NAVT, col); thick(cx + r * 7 / 10, cy - r / 8, cx + r * 7 / 10, cy + r * 9 / 10, NAVT, col);
+  thick(cx - r * 7 / 10, cy + r * 9 / 10, cx + r * 7 / 10, cy + r * 9 / 10, NAVT, col);
 }
 static void icon_exit(int cx, int cy, int r, int col) {
-  int i, t = r / 5 > 1 ? r / 5 : 2;
-  for (i = -r * 3 / 4; i <= r * 3 / 4; i++) { FillArea(cx + i - t / 2, cy + i - t / 2, t + 1, t + 1, col); FillArea(cx + i - t / 2, cy - i - t / 2, t + 1, t + 1, col); }
+  thick(cx - r * 4 / 5, cy - r * 4 / 5, cx + r * 4 / 5, cy + r * 4 / 5, NAVT, col); thick(cx - r * 4 / 5, cy + r * 4 / 5, cx + r * 4 / 5, cy - r * 4 / 5, NAVT, col);
 }
-/* Activitat de xarxa: mentre és diferent de zero, la barra d'estat mostra un cercle de càrrega al costat del Wi-Fi.
+/* Activitat de xarxa: mentre és diferent de zero, la barra mostra un cercle de càrrega al costat del Wi-Fi.
    Els bits distingeixen baixada i pujada per si més endavant cal diferenciar-les. */
 enum { NETA_DOWN = 1, NETA_UP = 2 };
 static int netAct;
-/* ───── elements de la barra d'estat ─────
-   La barra és una llista de StatusItem (vegeu mod.h) dibuixada de dreta a esquerra: els del sistema (hora, bateria,
-   Wi-Fi, xarxa) i després els que ofereixen els paquets. Tocar la barra obre el tauler ràpid. */
-static int si_time_w(int h) { (void)h; SetFont(fTitle, BLACK); return StringWidth("00:00"); }
+static int si_time_w(int h) { (void)h; SetFont(fTitle, WHITE); return StringWidth("00:00"); }
 static void si_time_d(int x, int y, int w, int h, int fg) {
   char t[16]; time_t now = time(NULL); struct tm *tm = localtime(&now);
   snprintf(t, sizeof(t), "%d:%02d", tm->tm_hour, tm->tm_min);
   SetFont(fTitle, fg); DrawTextRect(x, y, w, h, t, ALIGN_RIGHT | VALIGN_MIDDLE);
 }
-static int si_batt_w(int h) { (void)h; SetFont(fSmall, BLACK); return StringWidth("100%") + U / 4 + U * 13 / 10 + 8; }
+static int batt_pct(void) { int p = GetBatteryPower(); return p < 0 ? 0 : p > 100 ? 100 : p; }
+static int si_batt_w(int h) { char t[16]; (void)h; snprintf(t, sizeof(t), "%d%%", batt_pct()); SetFont(fSmall, WHITE); return StringWidth(t) + U / 4 + ICH * 2 + 4; }
 static void si_batt_d(int x, int y, int w, int h, int fg) {
-  char t[16]; int pct = GetBatteryPower(), bw = U * 13 / 10, nw = 6, bh = h / 2 * 7 / 10, by = y + (h - bh) / 2, tw, bx, inner;
+  char t[16]; int pct = batt_pct(), bh = ICH, bw = ICH * 2, nw = 4, by = y + (h - bh) / 2, tw, bx, inner;
   (void)w;
-  if (pct < 0) pct = 0;
-  if (pct > 100) pct = 100;
   snprintf(t, sizeof(t), "%d%%", pct);
-  SetFont(fSmall, fg); tw = StringWidth("100%");
+  SetFont(fSmall, fg); tw = StringWidth(t);
   DrawTextRect(x, y, tw, h, t, ALIGN_RIGHT | VALIGN_MIDDLE);
   bx = x + tw + U / 4;
-  rcard(bx, by, bw, bh, 4, 2, fg, WHITE);
+  rcard(bx, by, bw, bh, 4, 2, fg, BLACK);
   rfill(bx + bw, by + bh / 4, nw, bh - 2 * (bh / 4), 2, fg);
   inner = (bw - 8) * pct / 100; if (inner < 2) inner = 2;
   rfill(bx + 4, by + 4, inner, bh - 8, 2, fg);
-  if (IsCharging()) {                          /* llamp: dos triangles oposats */
-    int cx = bx + bw / 2, cy = by + bh / 2, hh = bh / 2 - 3, k2, col = inner > bw / 2 ? WHITE : fg;
+  if (IsCharging()) {                          /* llamp: dos triangles oposats, del color que contrasti amb el farciment */
+    int cx = bx + bw / 2, cy = by + bh / 2, hh = bh / 2 - 3, k2, col = inner > bw / 2 ? BLACK : fg;
     for (k2 = 0; k2 < hh; k2++) {
       int wv = (hh - k2) * 2 / 3 + 1;
       FillArea(cx - wv + 2, cy - k2 - 1, wv + 2, 1, col);
@@ -61,36 +60,35 @@ static void si_batt_d(int x, int y, int w, int h, int fg) {
     }
   }
 }
-/* Wi-Fi: connectat = arcs plens segons el senyal; encès sense connexió = arcs en gris fosc; apagat = arcs clars i barrats */
-static int si_wifi_w(int h) { return (h / 4) * 5 / 2 + 2; }
+/* Wi-Fi: connectat = arcs blancs segons el senyal; encès sense connexió = arcs gris clar; apagat = arcs gris fosc i barrats */
+static int si_wifi_w(int h) { (void)h; return ICH * 3 / 2; }
 static void si_wifi_d(int x, int y, int w, int h, int fg) {
-  int net = QueryNetwork(), off = !(net & NET_WIFI) && !(net & NET_WIFIREADY), eco = !off && !(net & NET_WIFIREADY), r = h / 4, level = 0;
+  int net = QueryNetwork(), off = !(net & NET_WIFI) && !(net & NET_WIFIREADY), eco = !off && !(net & NET_WIFIREADY), r = ICH * 10 / 17, level = 0;
   if (!off && !eco) { int q = GetNetSignalQuality(), bars = q < 0 ? 4 : (q * 4 + 4) / 5; if (bars < 1) bars = 1; if (bars > 4) bars = 4; level = (bars * 3 + 3) / 4; }
-  ic_wifi(x + w / 2, y + h / 2 + r / 4, r, level, fg, off ? LGRAY : DGRAY, off);
+  ic_wifi(x + w / 2, y + h / 2 + r / 5, r, level, fg, off ? DGRAY : (eco ? LGRAY : DGRAY), off);
 }
-static int si_net_w(int h) { return netAct ? h / 2 : 0; }
-static void si_net_d(int x, int y, int w, int h, int fg) { ic_spinner(x + w / 2, y + h / 2, w / 2, fg); }
+static int si_net_w(int h) { (void)h; return netAct ? ICH * 12 / 10 : 0; }
+static void si_net_d(int x, int y, int w, int h, int fg) { ic_spinner(x + w / 2, y + h / 2, w / 2, fg, LGRAY, DGRAY); }
 static int status_modules(const StatusItem **out, int max);
 static void statusbar(int withHits) {
   static const StatusItem SYS[4] = { { "hora", si_time_w, si_time_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "xarxa", si_net_w, si_net_d } };
-  const StatusItem *list[40]; int n = 0, i, x = SW - U / 2, nb = SB * 5 / 4, r = SB / 4, act = depth > 1 ? BLACK : LGRAY;
+  const StatusItem *list[40]; int n = 0, i, x = SW - U / 2, nb = SB * 11 / 10, r = ICH / 2, act = depth > 1 ? WHITE : DGRAY, gap = U * 7 / 10;
   for (i = 0; i < 4; i++) list[n++] = &SYS[i];
   n += status_modules(list + n, 40 - n);
-  FillArea(0, 0, SW, SB, WHITE); FillArea(0, SB - 2, SW, 2, BLACK);
-  icon_back(nb / 2, SB / 2, r, act);
-  icon_home(nb + nb / 2, SB / 2, r, act);
-  icon_exit(2 * nb + nb / 2, SB / 2, r, BLACK);
-  FillArea(nb, SB / 4, 1, SB / 2, LGRAY); FillArea(2 * nb, SB / 4, 1, SB / 2, LGRAY); FillArea(3 * nb, SB / 4, 1, SB / 2, LGRAY);
+  FillArea(0, 0, SW, SB, BLACK);
+  icon_back(U / 4 + nb / 2, SB / 2, r, act);
+  icon_home(U / 4 + nb + nb / 2, SB / 2, r, act);
+  icon_exit(U / 4 + 2 * nb + nb / 2, SB / 2, r, WHITE);
   if (withHits) {
-    add_hit(3 * nb, 0, SW - 3 * nb, SB, A_QUICK, 0);
-    if (depth > 1) { add_hit(0, 0, nb, SB, A_BACK, 0); add_hit(nb, 0, nb, SB, A_HOME, 0); }
-    add_hit(2 * nb, 0, nb, SB, A_EXIT, 0);
+    add_hit(U / 4 + 3 * nb, 0, SW - 3 * nb, SB, A_QUICK, 0);
+    if (depth > 1) { add_hit(0, 0, U / 4 + nb, SB, A_BACK, 0); add_hit(U / 4 + nb, 0, nb, SB, A_HOME, 0); }
+    add_hit(U / 4 + 2 * nb, 0, nb, SB, A_EXIT, 0);
   }
   for (i = 0; i < n; i++) {
     int w = list[i]->width(SB);
     if (w <= 0) continue;
-    if (x - w < 3 * nb + U) break;
-    x -= w; list[i]->draw(x, 0, w, SB, BLACK); x -= U / 2;
+    if (x - w < U / 4 + 3 * nb + U) break;
+    x -= w; list[i]->draw(x, 0, w, SB, WHITE); x -= gap;
   }
 }
 static void draw(int full);
