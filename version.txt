@@ -1,5 +1,5 @@
-6
-137124
-e271770a
-Versió 1.2: barra d'estat negra amb barres de senyal i WIFI, cercle de càrrega, menys refrescos de pantalla. Després d'actualitzar, torna a obrir l'Escriptori.
-1.2
+7
+157628
+5bc78f1a
+Versió 2.0: interfície nova (inici amb preferits, capçaleres amb enrere i inici, Configuració amb «Sobre el dispositiu»), avisos i barra d'estat que s'actualitza per peces. Després d'actualitzar, surt i torna a obrir l'Escriptori, i actualitza tots els paquets.
+2.0

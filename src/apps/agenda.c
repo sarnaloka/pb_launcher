@@ -91,10 +91,11 @@ static void w_next(int x, int y, int w, int h) {
   ui_lv(x, y, w, h, "Agenda · proper esdeveniment", t);
 }
 static const Widget WG[] = { { "proper", "Proper esdeveniment", 4, 1, w_next } };
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      FillArea(x + s / 6, y + s / 6, s * 2 / 3, s * 2 / 3, BLACK); FillArea(x + s / 6 + 4, y + s / 6 + s / 6, s * 2 / 3 - 8, s / 2 - 4, WHITE);
-      for (i = 0; i < 2; i++) for (j = 0; j < 3; j++) FillArea(x + s / 4 + j * (s / 5), y + s * 7 / 16 + i * (s / 6), s / 10, s / 10, BLACK);
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s);
+  ol(x + s / 6, y + s / 5, s * 2 / 3, s * 3 / 5, s / 10, t);
+  FillArea(x + s / 6, y + s * 3 / 8, s * 2 / 3, t, BLACK);
+  FillArea(x + s / 3 - t / 2, y + s / 8, t, s / 6, BLACK); FillArea(x + s * 2 / 3 - t / 2, y + s / 8, t, s / 6, BLACK);
 }
 static void mod_draw(View *v) {
   switch (v->type) {
@@ -115,5 +116,5 @@ static void mod_open(View *v) {
   (void)v;
   { time_t now = time(NULL); struct tm *tm = localtime(&now); v->a = (tm->tm_year + 1900) * 12 + tm->tm_mon; }
 }
-static Module M = { ESC_API, "agenda", "Agenda", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
+static Module M = { ESC_API_MIN, "agenda", "Agenda", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

@@ -12,9 +12,8 @@ shot q5.txt
 tap manual.pdf
 dlg 1
 tap Esborra
-xy 40 40
-xy 40 40
-xy 40 40
+xy 62 149
+xy 62 149
 tap Tasques
 kbd Comprar pa
 tap Nova tasca
@@ -23,7 +22,7 @@ tap Nova tasca
 tap Comprar pa
 shot q6.txt
 tap Esborra les fetes
-xy 150 40
+xy 1010 149
 tap Conversor
 kbd 26,2
 xy 500 480
@@ -32,7 +31,7 @@ shot q7.txt
 tap Temp.
 tap °F
 tap Pes
-xy 150 40
+xy 1010 149
 tap Agenda
 shot q8.txt
 tap 20
@@ -41,7 +40,7 @@ tap Nou esdeveniment
 kbd Sopar amb la Marta
 tap Nou esdeveniment
 shot q9.txt
-xy 40 40
+xy 62 149
 tap Mes següent >
 tap Mes següent >
 tap Mes anterior
@@ -49,10 +48,10 @@ tap < Mes anterior
 shot q10.txt
 tap 20
 tap Dentista
-xy 150 40
+xy 1010 149
 tap Sudoku
 shot q11.txt
-xy 150 40
+xy 1010 149
 tap Buscamines
 xy 600 700
 shot q12.txt
@@ -62,18 +61,18 @@ tap Mode: bandera
 xy 300 300
 xy 800 1000
 tap Joc nou
-xy 150 40
+xy 1010 149
 tap El temps
 shot q13.txt
 tap Actualitza (cal Wi-Fi)
 shot q14.txt
-xy 150 40
+xy 1010 149
 tap Notícies
 tap Actualitza (Wi-Fi)
 shot q15.txt
 tap Pluja
 shot q16.txt
-xy 40 40
+xy 62 149
 tap Canals
 kbd https://example.org/rss
 tap Afegeix un canal RSS
@@ -82,6 +81,6 @@ tap Afegeix un canal RSS
 shot q17.txt
 dlg 1
 tap example.org
-xy 150 40
+xy 1010 149
 tap KOReader
-tap Següent >
+key 25

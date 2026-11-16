@@ -1,13 +1,13 @@
-busamb|Bus AMB|2|5072448|e1609aca|Parades, sortides i horaris del bus metropolità, amb PDF.
-rellotge|Rellotge|2|9636|f0b52ec9|Hora, data i calendari del mes.
-notes|Notes|2|9616|abc64f01|Notes curtes desades al lector.
-calculadora|Calculadora|2|9692|d42e39d3|Les quatre operacions, percentatge i decimals.
-fitxers|Fitxers|2|10332|f01eef57|Navega per carpetes; obre, mou i esborra fitxers.
-tasques|Tasques|3|9684|bc909089|Llista de tasques amb caselles.
-conversor|Conversor|2|9652|769bd990|Longitud, pes, volum i temperatura.
-agenda|Agenda|2|13796|05fe8183|Calendari amb esdeveniments per dia.
-sudoku|Sudoku|2|9604|e99ae040|Partides amb solució única que es desen soles.
-buscamines|Buscamines|2|9584|bda11603|El clàssic, en un taulell de 9 per 9.
-temps|El temps|3|22048|994b1859|Previsió de set dies per a Barcelona i altres ciutats que triïs (cal Wi-Fi).
-noticies|Notícies|2|13828|9b36cc41|Titulars de canals RSS, desats per llegir sense connexió.
-lector|Lector|2|46732|4404d261|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
+busamb|Bus AMB|3|5072448|053db4c9|Parades, sortides i horaris del bus metropolità, amb PDF.
+rellotge|Rellotge|3|9636|3d8f25ae|Hora, data i calendari del mes.
+notes|Notes|3|9616|956aabda|Notes curtes desades al lector.
+calculadora|Calculadora|3|9692|118f8afa|Les quatre operacions, percentatge i decimals.
+fitxers|Fitxers|3|14428|2adc6627|Navega per carpetes; obre, mou i esborra fitxers.
+tasques|Tasques|4|9684|30f22d8a|Llista de tasques amb caselles.
+conversor|Conversor|3|9652|d65dfa90|Longitud, pes, volum i temperatura.
+agenda|Agenda|3|13796|9402ae9c|Calendari amb esdeveniments per dia.
+sudoku|Sudoku|3|9608|01517cf5|Partides amb solució única que es desen soles.
+buscamines|Buscamines|3|9588|d1ef2863|El clàssic, en un taulell de 9 per 9.
+temps|El temps|4|22052|6184d2dd|Previsió de set dies per a Barcelona i altres ciutats que triïs (cal Wi-Fi).
+noticies|Notícies|4|17924|6f4371a5|Titulars de canals RSS, desats per llegir sense connexió.
+lector|Lector|3|46732|20397c62|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.

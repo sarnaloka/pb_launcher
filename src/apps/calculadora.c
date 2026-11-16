@@ -49,11 +49,11 @@ static void v_calc(View *v) {
   for (i = 0; i < 20; i++) button(U / 2 + (i % 4) * (bw + gap), y0 + (i / 4) * (bh + gap), bw, bh, CKEYS[i], i == 19, A_CALC, i);
 }
 
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      FillArea(x + s / 4, y + s / 8, s / 2, s * 3 / 4, BLACK);
-      FillArea(x + s / 4 + s / 16, y + s / 8 + s / 16, s / 2 - s / 8, s / 6, WHITE);
-      for (i = 0; i < 3; i++) for (j = 0; j < 3; j++) FillArea(x + s / 4 + s / 16 + j * (s / 8 + s / 64), y + s / 8 + s * 5 / 16 + i * (s / 8 + s / 64), s / 10, s / 10, WHITE);
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s), i, j;
+  ol(x + s / 4, y + s / 8, s / 2, s * 3 / 4, s / 10, t);
+  FillArea(x + s * 3 / 8, y + s * 9 / 32, s / 4, t, BLACK);
+  for (i = 0; i < 2; i++) for (j = 0; j < 3; j++) disc(x + s * 3 / 8 + j * (s / 8), y + s * 15 / 32 + i * (s * 5 / 32), t * 2 / 3 + 1, BLACK);
 }
 static void mod_draw(View *v) {
   switch (v->type) {
@@ -69,5 +69,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "calculadora", "Calculadora", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
+static Module M = { ESC_API_MIN, "calculadora", "Calculadora", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

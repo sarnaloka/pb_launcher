@@ -71,7 +71,7 @@ static UNUSED void rfill(int x, int y, int w, int h, int r, int col) {
     FillArea(x + inset, y + h - 1 - k, w - 2 * inset, 1, col);
   }
 }
-static UNUSED int ui_r(int w, int h) { int m = w < h ? w : h, r = m / 5; return r < 3 ? 3 : r > 16 ? 16 : r; }
+static UNUSED int ui_r(int w, int h) { int m = w < h ? w : h, r = m / 4; return r < 3 ? 3 : r > 40 ? 40 : r; }
 /* t = gruix de la vora (0 = sense vora), fg = color de la vora, bg = color de l'interior */
 static UNUSED void rcard(int x, int y, int w, int h, int r, int t, int fg, int bg) {
   rfill(x, y, w, h, r, fg);
@@ -81,7 +81,7 @@ enum { UI_LINE, UI_SOFT, UI_SOLID };
 static UNUSED void ui_card(int x, int y, int w, int h, int style) {
   int r = ui_r(w, h);
   if (style == UI_SOLID) rcard(x, y, w, h, r, 0, BLACK, BLACK);
-  else rcard(x, y, w, h, r, 2, style == UI_SOFT ? LGRAY : BLACK, WHITE);
+  else rcard(x, y, w, h, r, 3, style == UI_SOFT ? LGRAY : BLACK, WHITE);
 }
 static UNUSED void box(int x, int y, int w, int h) { ui_card(x, y, w, h, UI_LINE); }
 static UNUSED void disc(int cx, int cy, int r, int col) {
@@ -94,6 +94,15 @@ static UNUSED void thick(int x1, int y1, int x2, int y2, int t, int col) {
   for (i = 0; i <= n; i++) FillArea(x1 + dx * i / n - t / 2, y1 + dy * i / n - t / 2, t, t, col);
 }
 
+/* Icones de les aplicacions: totes de línia amb el mateix gruix. ic_t(s) = gruix per a una icona de mida s;
+   ol() = rectangle arrodonit de contorn; ring() = anella. Es dibuixen en negre sobre fons blanc. */
+static UNUSED int ic_t(int s) { return s / 14 > 3 ? s / 14 : 3; }
+static UNUSED void ol(int x, int y, int w, int h, int r, int t) { rcard(x, y, w, h, r, t, BLACK, WHITE); }
+static UNUSED void ring(int cx, int cy, int r, int t) { disc(cx, cy, r, BLACK); disc(cx, cy, r - t, WHITE); }
+static UNUSED void rays(int cx, int cy, int r0, int r1, int t) {
+  int k;
+  for (k = 0; k < 8; k++) { double a = k * 3.14159265 / 4; thick(cx + (int)(sin(a) * r0), cy - (int)(cos(a) * r0), cx + (int)(sin(a) * r1), cy - (int)(cos(a) * r1), t, BLACK); }
+}
 /* Icones de línia: cx,cy = centre; r = meitat de la mida; col = color. */
 static UNUSED void ic_arc(int cx, int cy, int R, double a0, double a1, int t, int col) {   /* angles en graus des de la vertical */
   double len = (a1 - a0) * 3.14159265 / 180.0 * R; int n = (int)(len / (t > 1 ? t * 0.7 : 1)) + 1, i;

@@ -5,7 +5,7 @@ i escriu en català tot el text de la interfície.
 
 ## Què és cada cosa
 
-- `src/base.c`, `src/base_gen.h`: sistema base (escriptori, barra d'estat, gestor de paquets, pantalla Sistema, actualització).
+- `src/base.c`, `src/base_gen.h`: sistema base (inici amb preferits, barra d'estat, tauler ràpid, avisos, gestor de paquets, Configuració amb «Sobre el dispositiu», actualització).
 - `src/mod.h`: interfície entre el sistema base (`Host`) i els paquets (`Module`, `Widget`, `StatusItem`). `ESC_API` n'és la versió (3; els paquets compatibles amb la 2 usen `ESC_API_MIN`). Inclou les formes i icones del sistema de disseny; `src/ui.h` hi afegeix els components amb text i tacte (files, interruptors, rajoles).
 - `src/apps/<id>.c`: un fitxer per paquet (Bus AMB té a més `src/apps/busamb/`). `src/packages.txt`: nom, versió i descripció de cada paquet.
 - `packages/`: paquets compilats (`.pkg`) i catàleg `index.txt`. `Escriptori.app` i `version.txt`: sistema base publicat.
@@ -33,6 +33,7 @@ i escriu en català tot el text de la interfície.
 ## Límits que cal tenir presents i dir clarament
 
 - Res no es pot executar al lector des d'una sessió: només es prova al simulador. Digues sempre què s'ha provat i què no.
+- La barra d'estat només mostra estat (tocar-la obre el tauler ràpid); enrere i inici són botons rodons a la capçalera que dibuixa `header()`: tota pantalla d'un paquet ha de cridar `header()` o oferir una altra manera de sortir.
 - Pantalla de tinta electrònica en blanc i negre, 1072×1448: sense animacions, botons grans, llistes paginades. Les descàrregues bloquegen el programa: l'indicador de xarxa només canvia amb una actualització parcial abans i després.
 - Les funcions del sistema (xarxa, obrir fitxers, llançar altres apps) no estan verificades al lector fins que ella ho confirmi.
 - El repositori és públic: no hi posis dades personals. Les dades de l'usuari viuen al lector, a `system/config/`.

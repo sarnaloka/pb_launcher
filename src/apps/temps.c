@@ -267,11 +267,9 @@ static void w_today(int x, int y, int w, int h) {
   ui_lv(x, y, w, h, lab, t);
 }
 static const Widget WG[] = { { "avui", "El temps d'avui", 2, 1, w_today } };
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      thick(x + s / 2, y + s / 8, x + s / 2, y + s * 7 / 8, s / 20 > 2 ? s / 20 : 3, BLACK); thick(x + s / 8, y + s / 2, x + s * 7 / 8, y + s / 2, s / 20 > 2 ? s / 20 : 3, BLACK);
-      thick(x + s / 4, y + s / 4, x + s * 3 / 4, y + s * 3 / 4, s / 20 > 2 ? s / 20 : 3, BLACK); thick(x + s * 3 / 4, y + s / 4, x + s / 4, y + s * 3 / 4, s / 20 > 2 ? s / 20 : 3, BLACK);
-      disc(x + s / 2, y + s / 2, s / 4 + s / 20, WHITE); disc(x + s / 2, y + s / 2, s / 5, BLACK);
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s);
+  ring(x + s / 2, y + s / 2, s / 6, t); rays(x + s / 2, y + s / 2, s / 6 + t + 2, s * 3 / 8, t);
 }
 static void mod_draw(View *v) {
   switch (v->type) {
@@ -317,5 +315,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   v->a = 0; editing = 0;
 }
-static Module M = { ESC_API, "temps", "El temps", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
+static Module M = { ESC_API_MIN, "temps", "El temps", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

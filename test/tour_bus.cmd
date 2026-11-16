@@ -7,23 +7,23 @@ tap Museu - El Viver
 shot s3.txt
 tap B25
 tap Preferida: no
-tap Següent >
+key 25
 shot s4.txt
 tap Horari
 shot s5.txt
 tap H. Esperit Sant
 shot s6.txt
-tap Següent >
+key 25
 shot s6b.txt
 tap Festius
 tap Dissabte
 tap Desa l'horari en PDF
-xy 150 40
+xy 1010 149
 tap Bus AMB
 shot s7.txt
 tap Tria per línia
 shot s8.txt
-tap Següent >
+key 25
 shot s8b.txt
 key 24
 tap B25
@@ -36,13 +36,13 @@ key 25
 key 25
 key 25
 shot s10.txt
-xy 150 40
+xy 1010 149
 tap Bus AMB
 kbd zzzz
 tap Cerca una parada
 shot s11.txt
 kbd pl
-xy 40 40
+xy 62 149
 tap Cerca una parada
 key 25
 key 25

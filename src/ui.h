@@ -22,7 +22,7 @@ static UNUSED void ui_lv(int x, int y, int w, int h, const char *label, const ch
 static UNUSED void ui_toggle(int x, int y, int w, int h, int on) {
   int r = h / 2, k = h - 8;
   if (on) { rfill(x, y, w, h, r, BLACK); rfill(x + w - k - 4, y + 4, k, k, k / 2, WHITE); }
-  else { rcard(x, y, w, h, r, 2, BLACK, WHITE); rfill(x + 4, y + 4, k, k, k / 2, BLACK); }
+  else { rcard(x, y, w, h, r, 3, DGRAY, WHITE); rfill(x + 7, y + 7, k - 6, k - 6, (k - 6) / 2, DGRAY); }
 }
 /* Rajola del tauler ràpid: targeta amb títol i estat; solid = invertida (activa). L'icona la dibuixa qui la crida. */
 static UNUSED void ui_tile(int x, int y, int w, int h, const char *title, const char *state, int solid, int act, int arg) {

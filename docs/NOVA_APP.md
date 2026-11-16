@@ -86,3 +86,10 @@ if (H->api >= 3 && H->notify) H->notify("Notícies", "Notícies actualitzades", 
 ## Barra d'estat: refresc per peces
 
 Cada peça del sistema (hora, bateria, Wi-Fi, xarxa, avisos) té una signatura d'estat (`sb_sig`). `sb_refresh()` repinta la barra a la memòria i només actualitza la pantalla als rectangles de les peces que han canviat; si res ha canviat, no hi ha cap refresc. El canvi de minut només refresca l'hora, i `EVT_NET_CONNECTED/DISCONNECTED` només el Wi-Fi.
+
+## Interfície 2.0
+
+- **Navegació**: la barra d'estat ja no té botons. `header(títol, subtítol)` dibuixa el botó rodó d'enrere a l'esquerra i el d'inici a la dreta; crida'l a totes les pantalles. El peu de paginació (botons rodons i «N de M») el dibuixa el sistema a partir de `pages`.
+- **Icona del paquet**: de línia, amb el gruix comú `ic_t(s)`. Fes servir `ol()` (rectangle arrodonit de contorn), `ring()`, `rays()` i `thick()`; negre sobre blanc, ocupant uns 2/3 de la mida `s`. El sistema hi posa la rajola al voltant.
+- **Botons**: `button()` és una píndola; `inv = 1` per a l'acció principal (negre).
+- **Compatibilitat**: declara `ESC_API_MIN` al `Module` si no fas servir res de l'API 3; així el paquet també carrega en un sistema base anterior.

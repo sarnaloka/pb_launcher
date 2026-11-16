@@ -4,8 +4,8 @@ static void add_hit(int x, int y, int w, int h, int act, int arg) {
   if (nhits < MAXHITS) { hits[nhits].x = x; hits[nhits].y = y; hits[nhits].w = w; hits[nhits].h = h; hits[nhits].act = act; hits[nhits].arg = arg; nhits++; }
 }
 static void button(int x, int y, int w, int h, const char *label, int inv, int act, int arg) {
-  int r = h / 4 > U / 2 ? U / 2 : h / 4;
-  if (inv) rcard(x, y, w, h, r, 0, BLACK, BLACK); else rcard(x, y, w, h, r, 2, BLACK, WHITE);
+  int r = h / 2;                               /* botons en forma de píndola */
+  if (inv) rcard(x, y, w, h, r, 0, BLACK, BLACK); else rcard(x, y, w, h, r, 3, BLACK, WHITE);
   SetFont(fBold, inv ? WHITE : BLACK);
   DrawTextRect(x + 4, y, w - 8, h, label, ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
   add_hit(x, y, w, h, act, arg);
@@ -15,8 +15,8 @@ static void button(int x, int y, int w, int h, const char *label, int inv, int a
    A l'esquerra, navegació en cel·les iguals; a la dreta, una llista d'elements amb una sola separació entre grups.
    Els elements són StatusItem (vegeu mod.h): els del sistema (hora, bateria, Wi-Fi, càrrega) i els dels paquets. */
 #define ICH (SB * 46 / 100)                    /* alçada comuna de totes les icones (casella quadrada) */
-#define NAVT (SB / 22 > 3 ? SB / 22 : 3)       /* gruix comú del traç de les icones de línia */
-static void icon_back(int cx, int cy, int r, int col) {
+#define NAVT (SB / 20 > 3 ? SB / 20 : 3)       /* gruix comú del traç de les icones de línia */
+static UNUSED void icon_back(int cx, int cy, int r, int col) {
   thick(cx - r, cy, cx + r, cy, NAVT, col);
   thick(cx - r, cy, cx - r / 4, cy - r * 3 / 4, NAVT, col); thick(cx - r, cy, cx - r / 4, cy + r * 3 / 4, NAVT, col);
 }
@@ -25,7 +25,7 @@ static void icon_home(int cx, int cy, int r, int col) {
   thick(cx - r * 7 / 10, cy - r / 8, cx - r * 7 / 10, cy + r * 9 / 10, NAVT, col); thick(cx + r * 7 / 10, cy - r / 8, cx + r * 7 / 10, cy + r * 9 / 10, NAVT, col);
   thick(cx - r * 7 / 10, cy + r * 9 / 10, cx + r * 7 / 10, cy + r * 9 / 10, NAVT, col);
 }
-static void icon_exit(int cx, int cy, int r, int col) {
+static UNUSED void icon_exit(int cx, int cy, int r, int col) {
   thick(cx - r * 4 / 5, cy - r * 4 / 5, cx + r * 4 / 5, cy + r * 4 / 5, NAVT, col); thick(cx - r * 4 / 5, cy + r * 4 / 5, cx + r * 4 / 5, cy - r * 4 / 5, NAVT, col);
 }
 /* Activitat de xarxa: mentre és diferent de zero, la barra mostra un cercle de càrrega al costat del Wi-Fi.
@@ -100,27 +100,22 @@ static int sb_sig(int i) {
 }
 static void statusbar(int withHits) {
   static const StatusItem SYS[NSYS] = { { "hora", si_time_w, si_time_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "xarxa", si_net_w, si_net_d }, { "avisos", si_av_w, si_av_d } };
-  const StatusItem *list[40]; int n = 0, i, x = SW - U / 2, hx0 = 0, nb = SB * 11 / 10, r = ICH / 2, act = depth > 1 ? WHITE : DGRAY, gap = U * 7 / 10;
+  const StatusItem *list[40]; int n = 0, i, x = SW - U / 2, gap = U * 7 / 10, tw;
   for (i = 0; i < NSYS; i++) list[n++] = &SYS[i];
   n += status_modules(list + n, 40 - n);
   for (i = 0; i < 40; i++) { sbX[i] = 0; sbW[i] = 0; }
-  sbN = n; sbR0 = U / 4 + 3 * nb;
   for (i = 0; i < NSYS; i++) sbSig[i] = sb_sig(i);
   FillArea(0, 0, SW, SB, BLACK);
-  icon_back(U / 4 + nb / 2, SB / 2, r, act);
-  icon_home(U / 4 + nb + nb / 2, SB / 2, r, act);
-  icon_exit(U / 4 + 2 * nb + nb / 2, SB / 2, r, WHITE);
-  if (withHits) {
-    add_hit(U / 4 + 3 * nb, 0, SW - 3 * nb, SB, A_QUICK, 0);
-    if (depth > 1) { add_hit(0, 0, U / 4 + nb, SB, A_BACK, 0); add_hit(U / 4 + nb, 0, nb, SB, A_HOME, 0); }
-    add_hit(U / 4 + 2 * nb, 0, nb, SB, A_EXIT, 0);
-  }
-  for (i = 0; i < n; i++) {
+  /* la barra només mostra estat: hora a l'esquerra, indicadors a la dreta. Tota la barra obre el tauler ràpid. */
+  tw = si_time_w(SB); sbX[0] = U / 2; sbW[0] = tw; si_time_d(U / 2, 0, tw, SB, WHITE);
+  sbN = n; sbR0 = U / 2 + tw + U;
+  if (withHits) add_hit(0, 0, SW, SB, A_QUICK, 0);
+  for (i = 1; i < n; i++) {
     int w = list[i]->width(SB);
     if (w <= 0) continue;
-    if (x - w < U / 4 + 3 * nb + U) break;
+    if (x - w < sbR0) break;
     x -= w; sbX[i] = x; sbW[i] = w; list[i]->draw(x, 0, w, SB, WHITE);
-    if (i == 4 && withHits) { hx0 = x; add_hit(hx0 - gap / 2, 0, w + gap, SB, A_AVISOS, 0); }
+    if (i == 4 && withHits) add_hit(x - gap / 2, 0, w + gap, SB, A_AVISOS, 0);
     x -= gap;
   }
 }
@@ -155,24 +150,42 @@ static void clock_tick(void) {
   else sb_refresh();
   SetWeakTimer("busamb_clock", clock_tick, (int)(61 - now % 60) * 1000);
 }
+/* Botó rodó (contorn o ple) i xebró; dir = -1 esquerra, 1 dreta. */
+static void round_btn(int x, int y, int d, int solid, int col) { if (solid) rfill(x, y, d, d, d / 2, col); else rcard(x, y, d, d, d / 2, 3, col, WHITE); }
+static void chev(int cx, int cy, int r, int dir, int col) {
+  int t = NAVT + 1;
+  thick(cx + dir * r / 3, cy, cx - dir * r / 3, cy - r * 2 / 3, t, col); thick(cx + dir * r / 3, cy, cx - dir * r / 3, cy + r * 2 / 3, t, col);
+}
+/* Capçalera de pantalla: botó rodó d'enrere, títol (i subtítol) i botó rodó d'inici. Ocupa de SB a TOP. */
+static ifont *fHead;
 static void header(const char *title, const char *sub) {
-  SetFont(fTitle, BLACK);
-  DrawTextRect(U / 2, SB + U / 4, SW - U, U + U / 2, title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
-  SetFont(fSmall, DGRAY);
-  DrawTextRect(U / 2, SB + U + U * 3 / 4, SW - U, U, sub ? sub : "", ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
-  FillArea(U / 2, SB + 3 * U - 4, SW - U, 3, DGRAY);
+  int d = 2 * U + U / 4, y0 = SB + (3 * U - d) / 2 + U / 8, nav = depth > 1, tx = nav ? U / 2 + d + U / 2 : U / 2, tw = SW - tx - (nav ? d + U : U / 2);
+  if (nav) {
+    round_btn(U / 2, y0, d, 0, BLACK); chev(U / 2 + d / 2 - 2, y0 + d / 2, d / 3, -1, BLACK);
+    add_hit(0, SB, U / 2 + d + U / 4, 3 * U + U / 4, A_BACK, 0);
+    round_btn(SW - U / 2 - d, y0, d, 0, BLACK); icon_home(SW - U / 2 - d / 2, y0 + d / 2, d / 4, BLACK);
+    add_hit(SW - U / 2 - d - U / 4, SB, d + U / 2 + U / 4, 3 * U + U / 4, A_HOME, 0);
+  }
+  SetFont(fHead ? fHead : fTitle, BLACK);
+  if (sub && sub[0]) {
+    DrawTextRect(tx, y0 - U / 8, tw, d * 6 / 10, title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    SetFont(fSmall, DGRAY); DrawTextRect(tx, y0 + d * 6 / 10 - U / 8, tw, d * 4 / 10, sub, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  } else DrawTextRect(tx, y0, tw, d, title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
 }
 #define TOP (SB + 3 * U + U / 2)
 #define NAVH (2 * U + U / 4)
 #define BOTTOM (SH - NAVH - U / 2)
+/* Peu de paginació: botons rodons d'anterior i següent i «N de M» al mig. footY el pot moure la vista (l'inici el posa sobre els preferits). */
+static int footY;
 static void footer(int page) {
-  int y = SH - NAVH - U / 4, bw = (SW - U) / 3; char pg[40];
+  int d = NAVH, y = footY; char pg[40];
   if (pages < 2) return;
-  if (page > 0) button(U / 2, y, bw, NAVH, "< Anterior", 0, A_PREV, 0);
-  snprintf(pg, sizeof(pg), "%d / %d", page + 1, pages);
-  SetFont(fText, BLACK);
-  DrawTextRect(U / 2 + bw, y, SW - U - 2 * bw, NAVH, pg, ALIGN_CENTER | VALIGN_MIDDLE);
-  if (page < pages - 1) button(SW - U / 2 - bw, y, bw, NAVH, "Següent >", 0, A_NEXT, 0);
+  if (page > 0) { round_btn(U / 2, y, d, 0, BLACK); chev(U / 2 + d / 2 - 2, y + d / 2, d / 3, -1, BLACK); add_hit(0, y - U / 4, SW / 3, d + U / 2, A_PREV, 0); }
+  else { round_btn(U / 2, y, d, 0, LGRAY); chev(U / 2 + d / 2 - 2, y + d / 2, d / 3, -1, LGRAY); }
+  snprintf(pg, sizeof(pg), "%d de %d", page + 1, pages);
+  SetFont(fBold, BLACK); DrawTextRect(SW / 3, y, SW / 3, d, pg, ALIGN_CENTER | VALIGN_MIDDLE);
+  if (page < pages - 1) { round_btn(SW - U / 2 - d, y, d, 1, BLACK); chev(SW - U / 2 - d / 2 + 2, y + d / 2, d / 3, 1, WHITE); add_hit(SW - SW / 3, y - U / 4, SW / 3, d + U / 2, A_NEXT, 0); }
+  else { round_btn(SW - U / 2 - d, y, d, 0, LGRAY); chev(SW - U / 2 - d / 2 + 2, y + d / 2, d / 3, 1, LGRAY); }
 }
 static char gk[NOTELEN]; static void (*askFn)(const char *);
 static void on_ask(char *text) {

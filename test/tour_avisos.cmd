@@ -2,7 +2,7 @@
 tap Paquets
 tap Actualitza el catàleg
 tap Instal·la-ho tot
-xy 150 40
+xy 1010 149
 echo --- sense avisos: no hi ha campana
 shot av_0.txt
 batt 14
@@ -12,7 +12,8 @@ shot av_1.txt
 tap Notícies
 tap Actualitza
 echo --- després de Notícies: 2 avisos
-xy 667 40
+xy 600 40
+tap Avisos
 shot av_2.txt
 tap Notícies actualitzades
 tap Bateria baixa

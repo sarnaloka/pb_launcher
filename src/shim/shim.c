@@ -17,6 +17,7 @@ char *DrawTextRect(int x, int y, int w, int h, const char *s, int flags) { Op *o
   if (w <= 0 || h <= 0) { fprintf(stderr, "BAD RECT %d %d %d %d '%s'\n", x, y, w, h, s); }
   o = add('T', x, y, w, h, curColor); o->size = cur->size; o->bold = cur->bold; o->flags = flags; snprintf(o->text, sizeof(o->text), "%s", s); { char *q; for (q = o->text; *q; q++) if (*q == '\n' || *q == '\t') *q = ' '; } return NULL; }
 void FullUpdate(void) { updates++; } void SoftUpdate(void) { updates++; }
+char *GetDeviceModel(void) { return "PocketBook Verse Pro (sim)"; } char *GetSerialNumber(void) { return "SIM-0000"; } char *GetSoftwareVersion(void) { return "simulador"; }
 static int simBatt = 62, simChg, simNet = -1, simSig = 3;
 int GetBatteryPower(void) { return simBatt; } int IsCharging(void) { return simChg; } int QueryNetwork(void) { const char *e = getenv("NET"); return simNet >= 0 ? simNet : e ? (int)strtol(e, NULL, 0) : 0x0202; }
 void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int GetNetSignalQuality(void) { return simSig; }

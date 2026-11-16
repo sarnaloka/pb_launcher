@@ -1,14 +1,14 @@
 # id|nom|versió|descripció
-busamb|Bus AMB|2|Parades, sortides i horaris del bus metropolità, amb PDF.
-rellotge|Rellotge|2|Hora, data i calendari del mes.
-notes|Notes|2|Notes curtes desades al lector.
-calculadora|Calculadora|2|Les quatre operacions, percentatge i decimals.
-fitxers|Fitxers|2|Navega per carpetes; obre, mou i esborra fitxers.
-tasques|Tasques|3|Llista de tasques amb caselles.
-conversor|Conversor|2|Longitud, pes, volum i temperatura.
-agenda|Agenda|2|Calendari amb esdeveniments per dia.
-sudoku|Sudoku|2|Partides amb solució única que es desen soles.
-buscamines|Buscamines|2|El clàssic, en un taulell de 9 per 9.
-temps|El temps|3|Previsió de set dies per a Barcelona i altres ciutats que triïs (cal Wi-Fi).
-noticies|Notícies|3|Titulars de canals RSS, desats per llegir sense connexió.
-lector|Lector|2|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
+busamb|Bus AMB|3|Parades, sortides i horaris del bus metropolità, amb PDF.
+rellotge|Rellotge|3|Hora, data i calendari del mes.
+notes|Notes|3|Notes curtes desades al lector.
+calculadora|Calculadora|3|Les quatre operacions, percentatge i decimals.
+fitxers|Fitxers|3|Navega per carpetes; obre, mou i esborra fitxers.
+tasques|Tasques|4|Llista de tasques amb caselles.
+conversor|Conversor|3|Longitud, pes, volum i temperatura.
+agenda|Agenda|3|Calendari amb esdeveniments per dia.
+sudoku|Sudoku|3|Partides amb solució única que es desen soles.
+buscamines|Buscamines|3|El clàssic, en un taulell de 9 per 9.
+temps|El temps|4|Previsió de set dies per a Barcelona i altres ciutats que triïs (cal Wi-Fi).
+noticies|Notícies|4|Titulars de canals RSS, desats per llegir sense connexió.
+lector|Lector|3|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.

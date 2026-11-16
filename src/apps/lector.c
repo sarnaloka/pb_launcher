@@ -1076,11 +1076,10 @@ static void v_toc(View *v) {
     y += rh;
   }
 }
-static void mod_icon(int x, int y, int s) {
-  int w = s * 3 / 8, h = s * 5 / 8, ty = y + s / 5, x0 = x + s / 8, i, g = s / 16;
-  FillArea(x0, ty, 2 * w + g, h, BLACK);
-  FillArea(x0 + 4, ty + 4, w - 6, h - 8, WHITE); FillArea(x0 + w + g + 2, ty + 4, w - 6, h - 8, WHITE);
-  for (i = 0; i < 4; i++) { FillArea(x0 + 10, ty + h / 6 + i * h / 5, w - 22, 3, BLACK); FillArea(x0 + w + g + 12, ty + h / 6 + i * h / 5, w - 22, 3, BLACK); }
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s), w = s * 5 / 16 + t / 2;
+  ol(x + s * 3 / 16, y + s / 4, w, s / 2, s / 16, t); ol(x + s / 2 - t / 2, y + s / 4, w, s / 2, s / 16, t);
+  FillArea(x + s * 9 / 32, y + s * 13 / 32, s / 8, t * 2 / 3 + 1, BLACK); FillArea(x + s * 19 / 32, y + s * 13 / 32, s / 8, t * 2 / 3 + 1, BLACK);
 }
 static void mod_draw(View *v) {
   switch (v->type) {
@@ -1139,5 +1138,5 @@ static void mod_action(View *v, int a, int arg) {
 }
 static int mod_back(View *v) { if (v->type == V_BOOK) save_pos(); return 0; }
 static void mod_open(View *v) { (void)v; cfg_load(); lib_scan(); }
-static Module M = { ESC_API, "lector", "Lector", 0, mod_icon, mod_draw, mod_action, mod_back, mod_open, 0, NULL, 0, NULL };
+static Module M = { ESC_API_MIN, "lector", "Lector", 0, mod_icon, mod_draw, mod_action, mod_back, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

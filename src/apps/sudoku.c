@@ -88,10 +88,11 @@ static void v_sudoku(View *v) {
   y += bh + U / 3; bw = (SW - U - U / 3) / 2;
   button(U / 2, y, bw, bh, "Comprova", 0, A_SU_CHECK, 0); button(U / 2 + bw + U / 3, y, bw, bh, "Sudoku nou", 0, A_SU_NEW, 0);
 }
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      for (i = 0; i <= 3; i++) { FillArea(x + s / 6 + i * (s * 2 / 9), y + s / 6, 4, s * 2 / 3 + 4, BLACK); FillArea(x + s / 6, y + s / 6 + i * (s * 2 / 9), s * 2 / 3 + 4, 4, BLACK); }
-      FillArea(x + s / 6 + s / 14, y + s / 6 + s / 14, s / 12, s / 12, BLACK); FillArea(x + s / 6 + s * 2 / 9 + s / 14, y + s / 6 + s * 2 / 9 + s / 14, s / 12, s / 12, BLACK); FillArea(x + s / 6 + s * 4 / 9 + s / 14, y + s / 6 + s / 14, s / 12, s / 12, BLACK);
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s), a = s * 2 / 3, tt = t * 2 / 3 + 1;
+  ol(x + s / 6, y + s / 6, a, a, s / 10, t);
+  FillArea(x + s / 6 + a / 3, y + s / 6, tt, a, BLACK); FillArea(x + s / 6 + a * 2 / 3, y + s / 6, tt, a, BLACK);
+  FillArea(x + s / 6, y + s / 6 + a / 3, a, tt, BLACK); FillArea(x + s / 6, y + s / 6 + a * 2 / 3, a, tt, BLACK);
 }
 static void mod_draw(View *v) {
   switch (v->type) {
@@ -117,5 +118,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "sudoku", "Sudoku", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
+static Module M = { ESC_API_MIN, "sudoku", "Sudoku", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

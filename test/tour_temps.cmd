@@ -17,12 +17,12 @@ tap Girona
 shot t6.txt
 tap Fes-la la ciutat principal
 shot t7.txt
-xy 55 43
+xy 62 149
 tap Edita
 shot t8.txt
 dlg 1
 tap València
 shot t9.txt
 tap Fet
-xy 150 40
+xy 1010 149
 shot t10.txt

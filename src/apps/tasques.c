@@ -47,13 +47,10 @@ static void si_d(int x, int y, int w, int h, int fg) {
 }
 static const StatusItem SI[] = { { "pendents", si_w, si_d } };
 static const Widget WG[] = { { "pendents", "Tasques pendents", 2, 1, w_pending } };
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      for (i = 0; i < 3; i++) {
-        int yy = y + s / 5 + i * (s / 4);
-        FillArea(x + s / 6, yy, s / 6, s / 6, BLACK); if (i > 0) FillArea(x + s / 6 + 3, yy + 3, s / 6 - 6, s / 6 - 6, WHITE);
-        FillArea(x + s / 6 + s / 4, yy + s / 16, s / 2 - s / 12, s / 20 > 2 ? s / 20 : 3, BLACK);
-      }
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s);
+  ol(x + s / 5, y + s / 5, s * 3 / 5, s * 3 / 5, s / 7, t);
+  thick(x + s * 11 / 32, y + s / 2, x + s * 15 / 32, y + s * 5 / 8, t, BLACK); thick(x + s * 15 / 32, y + s * 5 / 8, x + s * 21 / 32, y + s * 3 / 8, t, BLACK);
 }
 static void mod_draw(View *v) {
   switch (v->type) {
@@ -71,5 +68,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "tasques", "Tasques", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 1, SI, 1, WG };
+static Module M = { ESC_API_MIN, "tasques", "Tasques", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 1, SI, 1, WG };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

@@ -36,6 +36,7 @@ int GetFrontlightState(void); void SetFrontlightState(int s); int GetFrontlightE
 #define EVT_FOREGROUND 151
 #define EVT_BACKGROUND 152
 typedef void (*iv_timerproc)();
+char *GetDeviceModel(void); char *GetSerialNumber(void); char *GetSoftwareVersion(void);
 int GetBatteryPower(void); int IsCharging(void); int QueryNetwork(void); int GetNetSignalQuality(void);
 void SetWeakTimer(const char *name, iv_timerproc tp, int ms); void ClearTimer(iv_timerproc tp); void PartialUpdate(int x, int y, int w, int h);
 #define KBD_NORMAL 0

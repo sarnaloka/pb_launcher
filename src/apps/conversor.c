@@ -49,12 +49,10 @@ static void v_conv(View *v) {
     y += rh;
   }
 }
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      thick(x + s / 6, y + s * 3 / 8, x + s * 5 / 6, y + s * 3 / 8, s / 16 > 3 ? s / 16 : 4, BLACK);
-      thick(x + s * 5 / 6, y + s * 3 / 8, x + s * 2 / 3, y + s / 4, s / 16 > 3 ? s / 16 : 4, BLACK);
-      thick(x + s / 6, y + s * 5 / 8, x + s * 5 / 6, y + s * 5 / 8, s / 16 > 3 ? s / 16 : 4, BLACK);
-      thick(x + s / 6, y + s * 5 / 8, x + s / 3, y + s * 3 / 4, s / 16 > 3 ? s / 16 : 4, BLACK);
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s);
+  thick(x + s / 5, y + s * 3 / 8, x + s * 4 / 5, y + s * 3 / 8, t, BLACK); thick(x + s * 4 / 5, y + s * 3 / 8, x + s * 21 / 32, y + s / 4, t, BLACK);
+  thick(x + s / 5, y + s * 5 / 8, x + s * 4 / 5, y + s * 5 / 8, t, BLACK); thick(x + s / 5, y + s * 5 / 8, x + s * 11 / 32, y + s * 3 / 4, t, BLACK);
 }
 static void mod_draw(View *v) {
   switch (v->type) {
@@ -72,5 +70,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "conversor", "Conversor", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
+static Module M = { ESC_API_MIN, "conversor", "Conversor", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

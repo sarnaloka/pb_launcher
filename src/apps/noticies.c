@@ -153,11 +153,12 @@ static void w_headline(int x, int y, int w, int h) {
   ui_lv(x, y, w, h, "Notícies · últim titular", t);
 }
 static const Widget WG[] = { { "titular", "Últim titular", 4, 1, w_headline } };
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      FillArea(x + s / 6, y + s / 6, s * 2 / 3, s * 2 / 3, BLACK); FillArea(x + s / 6 + 4, y + s / 6 + 4, s * 2 / 3 - 8, s * 2 / 3 - 8, WHITE);
-      FillArea(x + s / 4, y + s / 4, s / 2, s / 8, BLACK);
-      for (i = 0; i < 3; i++) FillArea(x + s / 4, y + s * 7 / 16 + i * (s / 9), s / 2, s / 32 > 1 ? s / 32 : 2, BLACK);
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s);
+  ol(x + s / 6, y + s / 5, s * 2 / 3, s * 3 / 5, s / 10, t);
+  FillArea(x + s * 9 / 32, y + s * 11 / 32, s * 7 / 16, t, BLACK);
+  FillArea(x + s * 9 / 32, y + s / 2, s * 5 / 32, t * 2 / 3 + 1, BLACK); FillArea(x + s * 9 / 32, y + s * 5 / 8, s * 5 / 32, t * 2 / 3 + 1, BLACK);
+  ol(x + s * 17 / 32, y + s * 15 / 32, s * 3 / 16, s * 3 / 16, 2, t * 2 / 3 + 1);
 }
 static void mod_draw(View *v) {
   switch (v->type) {

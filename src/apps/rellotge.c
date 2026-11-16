@@ -28,11 +28,10 @@ static void v_clock(View *v) {
   }
 }
 
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      disc(x + s / 2, y + s / 2, s * 3 / 8, BLACK); disc(x + s / 2, y + s / 2, s * 3 / 8 - s / 16, WHITE);
-      thick(x + s / 2, y + s / 2, x + s / 2, y + s / 4, s / 20 > 2 ? s / 20 : 3, BLACK);
-      thick(x + s / 2, y + s / 2, x + s * 11 / 16, y + s * 9 / 16, s / 20 > 2 ? s / 20 : 3, BLACK);
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s);
+  ring(x + s / 2, y + s / 2, s * 5 / 16, t);
+  thick(x + s / 2, y + s / 2, x + s / 2, y + s * 5 / 16, t, BLACK); thick(x + s / 2, y + s / 2, x + s * 5 / 8, y + s * 9 / 16, t, BLACK);
 }
 static void mod_draw(View *v) {
   switch (v->type) {
@@ -47,5 +46,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "rellotge", "Rellotge", MOD_TICK, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
+static Module M = { ESC_API_MIN, "rellotge", "Rellotge", MOD_TICK, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

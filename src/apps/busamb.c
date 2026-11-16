@@ -312,13 +312,12 @@ static void save_pdf(View *v) {
     Message(ICON_ERROR, "Error", "No s'ha pogut desar el PDF.", 4000);
   }
 }
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      FillArea(x + s / 8, y + s / 6, s * 3 / 4, s * 9 / 16, BLACK);
-      for (i = 0; i < 3; i++) FillArea(x + s / 8 + s / 16 + i * (s * 7 / 32), y + s / 6 + s / 12, s * 5 / 32, s / 5, WHITE);
-      FillArea(x + s / 8, y + s / 6 + s * 3 / 8, s * 3 / 4, s / 32 > 1 ? s / 32 : 2, WHITE);
-      disc(x + s * 5 / 16, y + s * 3 / 4, s / 10, BLACK); disc(x + s * 11 / 16, y + s * 3 / 4, s / 10, BLACK);
-      disc(x + s * 5 / 16, y + s * 3 / 4, s / 24, WHITE); disc(x + s * 11 / 16, y + s * 3 / 4, s / 24, WHITE);
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s);
+  ol(x + s / 5, y + s / 6, s * 3 / 5, s * 7 / 12, s / 10, t);
+  FillArea(x + s / 5, y + s * 7 / 16, s * 3 / 5, t, BLACK);
+  disc(x + s * 11 / 32, y + s * 19 / 32, t * 2 / 3 + 1, BLACK); disc(x + s * 21 / 32, y + s * 19 / 32, t * 2 / 3 + 1, BLACK);
+  FillArea(x + s * 5 / 16 - t / 2, y + s * 3 / 4, t, s / 10, BLACK); FillArea(x + s * 11 / 16 - t / 2, y + s * 3 / 4, t, s / 10, BLACK);
 }
 static void mod_draw(View *v) {
   if (loadErr) { header("Bus AMB", "Error"); SetFont(fText, BLACK); DrawTextRect(U / 2, TOP, SW - U, 4 * U, "No s'han pogut carregar les dades d'horaris.", ALIGN_LEFT | VALIGN_TOP); return; }
@@ -354,5 +353,5 @@ static void mod_open(View *v) {
   (void)v;
   if (!loaded) { loaded = 1; loadErr = amb_load(amb_blob, (long)(amb_blob_end - amb_blob)); if (!loadErr) favs_load(); }
 }
-static Module M = { ESC_API, "busamb", "Bus AMB", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
+static Module M = { ESC_API_MIN, "busamb", "Bus AMB", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

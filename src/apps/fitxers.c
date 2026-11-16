@@ -71,9 +71,10 @@ static void v_file(View *v) {
 }
 static void file_delete(void) { if (remove(fsel) != 0) say("No s'ha pogut esborrar el fitxer."); POP(); }
 static void files_up(void) { char *p = strrchr(fpath, '/'); if (p && strlen(fpath) > strlen(FLASHDIR)) *p = 0; }
-static void mod_icon(int x, int y, int s) {
-  int i, j; (void)i; (void)j;
-      FillArea(x + s / 8, y + s / 4, s / 3, s / 8, BLACK); FillArea(x + s / 8, y + s / 4 + s / 10, s * 3 / 4, s / 2, BLACK);
+static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
+  int t = ic_t(s);
+  ol(x + s / 6, y + s / 5, s / 3, s / 4, s / 14, t);
+  ol(x + s / 6, y + s * 5 / 16, s * 2 / 3, s * 15 / 32, s / 12, t);
 }
 static void mod_draw(View *v) {
   switch (v->type) {
@@ -110,5 +111,5 @@ static void mod_open(View *v) {
   snprintf(fpath, sizeof(fpath), "%s", FLASHDIR);
 }
 static int mod_back(View *v) { if (v->type == V_FILES && strlen(fpath) > strlen(FLASHDIR)) { files_up(); v->page = 0; return 1; } return 0; }
-static Module M = { ESC_API, "fitxers", "Fitxers", 0, mod_icon, mod_draw, mod_action, mod_back, mod_open, 0, NULL, 0, NULL };
+static Module M = { ESC_API_MIN, "fitxers", "Fitxers", 0, mod_icon, mod_draw, mod_action, mod_back, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }
