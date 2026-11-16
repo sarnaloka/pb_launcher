@@ -1,35 +1,51 @@
 # Escriptori per a PocketBook
 
-Un petit llançador ("launcher") amb una suite d'eines per a lectors PocketBook, pensat per al Verse Pro.
+Un petit llançador ("launcher") modular per a lectors PocketBook, pensat per al Verse Pro.
 No és oficial ni té relació amb PocketBook ni amb l'AMB.
 
-## Què inclou
+## Com està organitzat
 
-- **Bus AMB**: parades, sortides i horaris teòrics del bus metropolità, amb exportació a PDF. Les dades són el GTFS obert de l'AMB.
-- Rellotge i calendari, notes, calculadora, fitxers, tasques, conversor d'unitats, agenda, sudoku, buscamines, el temps i notícies (RSS).
-- Barra d'estat pròpia amb navegació, cobertura Wi-Fi, bateria i hora.
-- Les aplicacions `.app` que hi hagi a la carpeta `applications` del lector surten com a icones.
+- **Sistema base** (`Escriptori.app`): escriptori amb icones, barra d'estat, gestor de paquets i actualització del sistema.
+- **Paquets** (`packages/*.pkg`): cada aplicació és un mòdul que el sistema base baixa d'aquest repositori i carrega.
+  El catàleg és `packages/index.txt`.
+
+Paquets disponibles: Bus AMB, Rellotge, Notes, Calculadora, Fitxers, Tasques, Conversor, Agenda, Sudoku, Buscamines,
+El temps i Notícies.
 
 ## Instal·lació
 
-1. Baixa `Escriptori.app` d'aquest repositori.
-2. Connecta el lector per USB i copia el fitxer a la carpeta `applications`.
-3. Desconnecta'l i obre **Escriptori** des de la llista d'aplicacions.
+1. Baixa `Escriptori.app` i copia'l per USB a la carpeta `applications` del lector.
+2. Obre **Escriptori**, connecta el Wi-Fi, entra a **Paquets**, prem *Actualitza el catàleg* i després *Instal·la-ho tot*
+   (o tria els paquets un per un).
 
-## Actualització per Wi-Fi
+Sense Wi-Fi també es poden instal·lar paquets: copia els fitxers `.pkg` per USB a
+`system/escriptori/packages/` i torna a obrir l'Escriptori.
 
-Dins de l'Escriptori, obre **Actualitza** i prem *Comprova si hi ha una versió nova*.
-L'app llegeix `version.txt` d'aquest repositori, baixa `Escriptori.app`, en comprova la mida i la suma de control (CRC32)
-i només llavors substitueix la versió instal·lada.
+## Actualitzacions
 
-Format de `version.txt`: versió, mida en bytes, CRC32 en hexadecimal i una línia de novetats.
+- **Sistema**: a *Sistema*, prem *Comprova si hi ha una versió nova*. Es llegeix `version.txt`, es baixa `Escriptori.app`
+  i només se substitueix si la mida i la suma de control (CRC32) coincideixen.
+- **Paquets**: a *Paquets*, *Actualitza el catàleg* i després *Instal·la i actualitza-ho tot*.
 
-## Compilació
+Formats:
 
-Cal el SDK oficial de PocketBook (branca 6.5, plataforma B288). Vegeu `build.sh`.
-`src/shim/` conté un substitut mínim de la biblioteca gràfica per provar la interfície en un ordinador.
-`tools/gen.js` regenera `src/amb.dat` a partir del `google_transit.zip` de l'AMB.
+- `version.txt`: compilació (enter creixent), mida, CRC32 hexadecimal, novetats, nom de la versió.
+- `packages/index.txt`: una línia per paquet, `id|nom|versió|mida|crc32|descripció`.
 
-## Estat
+## Crear un paquet
 
-El codi es prova en un simulador d'ordinador; el comportament real només es pot comprovar al lector.
+Un paquet és una biblioteca compartida que exporta `escriptori_module()` i retorna una estructura `Module`
+(vegeu `src/mod.h`): nom, icona, funció de dibuix, gestor d'accions i, opcionalment, "enrere" i "obrir".
+El sistema base li passa una estructura `Host` amb les mides de pantalla, les tipografies i funcions comunes
+(botons, capçalera, teclat, confirmacions, descàrregues). Els exemples més curts són `src/apps/rellotge.c`
+i `src/apps/calculadora.c`. Per publicar-lo: afegeix-lo a `src/packages.txt`, compila i puja `packages/`.
+
+## Compilació i proves
+
+- `build.sh`: compila el sistema base i tots els paquets amb el SDK oficial de PocketBook (branca 6.5, B288)
+  i regenera `packages/index.txt` i `version.txt`.
+- `build_sim.sh`: compila una versió per a ordinador amb un substitut mínim de la biblioteca gràfica (`src/shim/`).
+  Els guions de `test/` recorren les pantalles; `src/shim/render.py` les converteix en imatges.
+- `tools/gen.js`: regenera les dades de Bus AMB (`src/apps/busamb/amb.dat`) a partir del `google_transit.zip` de l'AMB.
+
+El codi es prova al simulador; el comportament real només es pot comprovar al lector.

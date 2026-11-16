@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Diari de prova</title><link>https://example.org</link><description>Canal</description>
+<item><title><![CDATA[L'AMB estrena una línia nova entre Badalona i Barcelona]]></title><link>https://example.org/1</link><description><![CDATA[<p>La nova línia <b>B26</b> començarà a circular dilluns &amp; tindrà pas cada 12 minuts.</p><img src="x.jpg"/>]]></description><content:encoded><![CDATA[<p>Text llarg</p>]]></content:encoded></item>
+<item><title>Pluja &amp; vent a tot el pa&#237;s &#8212; avís groc</title><description>&lt;p&gt;El Meteocat preveu &lt;em&gt;ruixats&lt;/em&gt; intensos&amp;nbsp;a la tarda.&lt;/p&gt;</description></item>
+<item><title>Tercer titular sense resum</title></item>
+</channel></rss>

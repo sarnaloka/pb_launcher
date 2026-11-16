@@ -1,5 +1,5 @@
 #include "inkview.h"
-#include "../afm.h"
+#include "afm.h"
 typedef struct { char kind; int x, y, w, h, color, size, bold, flags; char text[700]; } Op;
 static Op ops[4000]; static int nops; static const ifont *cur; static int curColor; static iv_handler H; static char pendingKbd[100];
 static int updates; static int dlgBtn = 2;
@@ -15,14 +15,15 @@ int StringWidth(const char *s) { const unsigned char *p = (const unsigned char *
   while (*p) { int c = *p++; if (c >= 0xC0) { while ((*p & 0xC0) == 0x80) p++; c = 'e'; } w += W[c - 32 < 0 ? 0 : c - 32]; } return (int)(w * cur->size / 1000.0 + 0.5); }
 char *DrawTextRect(int x, int y, int w, int h, const char *s, int flags) { Op *o;
   if (w <= 0 || h <= 0) { fprintf(stderr, "BAD RECT %d %d %d %d '%s'\n", x, y, w, h, s); }
-  o = add('T', x, y, w, h, curColor); o->size = cur->size; o->bold = cur->bold; o->flags = flags; snprintf(o->text, sizeof(o->text), "%s", s); return NULL; }
+  o = add('T', x, y, w, h, curColor); o->size = cur->size; o->bold = cur->bold; o->flags = flags; snprintf(o->text, sizeof(o->text), "%s", s); { char *q; for (q = o->text; *q; q++) if (*q == '\n' || *q == '\t') *q = ' '; } return NULL; }
 void FullUpdate(void) { updates++; } void SoftUpdate(void) { updates++; }
 int GetBatteryPower(void) { return 62; } int IsCharging(void) { return 0; } int QueryNetwork(void) { const char *e = getenv("NET"); return e ? (int)strtol(e, NULL, 0) : 0x0202; }
 void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int GetNetSignalQuality(void) { return 3; }
 void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { (void)n; (void)tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { (void)tp; } void PartialUpdate(int x, int y, int w, int h) { (void)x; (void)y; (void)w; (void)h; }
 int NetConnect(const char *n) { (void)n; return 0; }
-void *QuickDownload(const char *url, int *retsize, int timeout) { const char *fn = strstr(url, "open-meteo") ? "net/weather.json" : strstr(url, "version.txt") ? "net/version.txt" : strstr(url, "Escriptori.app") ? "net/Escriptori.app" : "net/feed.xml"; FILE *f = fopen(fn, "rb"); long n; char *b; (void)timeout;
-  printf("download %s\n", url); if (!f) return NULL; fseek(f, 0, SEEK_END); n = ftell(f); fseek(f, 0, SEEK_SET); b = malloc((size_t)n); n = (long)fread(b, 1, (size_t)n, f); fclose(f); *retsize = (int)n; return b; }
+void *QuickDownload(const char *url, int *retsize, int timeout) { char fn[600]; const char *m = strstr(url, "/main/"); FILE *f; long n; char *b, *q; (void)timeout;
+  if (strstr(url, "open-meteo")) snprintf(fn, sizeof(fn), "net/weather.json"); else if (m) { snprintf(fn, sizeof(fn), "net/repo/%s", m + 6); if ((q = strchr(fn, '?'))) *q = 0; } else snprintf(fn, sizeof(fn), "net/feed.xml");
+  printf("download %s\n", fn); f = fopen(fn, "rb"); if (!f) return NULL; fseek(f, 0, SEEK_END); n = ftell(f); fseek(f, 0, SEEK_SET); b = malloc((size_t)n + 1); n = (long)fread(b, 1, (size_t)n, f); fclose(f); *retsize = (int)n; return b; }
 int TextRectHeight(int width, const char *s, int flags) { (void)flags; return (StringWidth(s) / (width > 0 ? width : 1) + 1) * cur->size * 13 / 10; }
 void ShowHourglass(void) {} void HideHourglass(void) {}
 void CloseApp(void) { printf("CloseApp\n"); H(EVT_EXIT, 0, 0); exit(0); }

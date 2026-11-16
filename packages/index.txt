@@ -1,0 +1,12 @@
+busamb|Bus AMB|1|5072436|e039c100|Parades, sortides i horaris del bus metropolità, amb PDF.
+rellotge|Rellotge|1|9620|cd2e2d54|Hora, data i calendari del mes.
+notes|Notes|1|9600|5a356450|Notes curtes desades al lector.
+calculadora|Calculadora|1|9676|d261822e|Les quatre operacions, percentatge i decimals.
+fitxers|Fitxers|1|10316|8ef11eb8|Navega per carpetes; obre, mou i esborra fitxers.
+tasques|Tasques|1|9612|3c5a975a|Llista de tasques amb caselles.
+conversor|Conversor|1|9636|fbcb1753|Longitud, pes, volum i temperatura.
+agenda|Agenda|1|13776|8f8d8dd3|Calendari amb esdeveniments per dia.
+sudoku|Sudoku|1|9588|08cd3377|Partides amb solució única que es desen soles.
+buscamines|Buscamines|1|9568|e012f619|El clàssic, en un taulell de 9 per 9.
+temps|El temps|1|13776|4f8e649e|Previsió de set dies per a Barcelona (cal Wi-Fi).
+noticies|Notícies|1|13756|6e332428|Titulars de canals RSS, desats per llegir sense connexió.
