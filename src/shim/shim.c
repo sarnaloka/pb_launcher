@@ -9,7 +9,7 @@ static Op *add(char k, int x, int y, int w, int h, int color) { Op *o; if (nops 
 void DrawLine(int x1, int y1, int x2, int y2, int c) { add('L', x1, y1, x2, y2, c); }
 void DrawRect(int x, int y, int w, int h, int c) { add('R', x, y, w, h, c); }
 void FillArea(int x, int y, int w, int h, int c) { add('F', x, y, w, h, c); }
-ifont *OpenFont(const char *name, int size, int aa) { ifont *f = malloc(sizeof(ifont)); (void)aa; f->size = size; f->bold = !strcmp(name, "bold"); return f; }
+ifont *OpenFont(const char *name, int size, int aa) { ifont *f = malloc(sizeof(ifont)); (void)aa; f->size = size; f->bold = strstr(name, "old") != NULL; return f; }
 void SetFont(const ifont *f, int color) { cur = f; curColor = color; }
 int StringWidth(const char *s) { const unsigned char *p = (const unsigned char *)s; double w = 0; const unsigned short *W = cur->bold ? W_BOLD : W_REG;
   while (*p) { int c = *p++; if (c >= 0xC0) { while ((*p & 0xC0) == 0x80) p++; c = 'e'; } w += W[c - 32 < 0 ? 0 : c - 32]; } return (int)(w * cur->size / 1000.0 + 0.5); }

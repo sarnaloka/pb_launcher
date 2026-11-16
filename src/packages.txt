@@ -11,3 +11,4 @@ sudoku|Sudoku|1|Partides amb solució única que es desen soles.
 buscamines|Buscamines|1|El clàssic, en un taulell de 9 per 9.
 temps|El temps|1|Previsió de set dies per a Barcelona (cal Wi-Fi).
 noticies|Notícies|1|Titulars de canals RSS, desats per llegir sense connexió.
+lector|Lector|1|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.

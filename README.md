@@ -10,7 +10,7 @@ No és oficial ni té relació amb PocketBook ni amb l'AMB.
   El catàleg és `packages/index.txt`.
 
 Paquets disponibles: Bus AMB, Rellotge, Notes, Calculadora, Fitxers, Tasques, Conversor, Agenda, Sudoku, Buscamines,
-El temps i Notícies.
+El temps, Notícies i Lector (EPUB).
 
 ## Instal·lació
 

@@ -10,3 +10,4 @@ sudoku|Sudoku|1|9588|08cd3377|Partides amb solució única que es desen soles.
 buscamines|Buscamines|1|9568|e012f619|El clàssic, en un taulell de 9 per 9.
 temps|El temps|1|13776|4f8e649e|Previsió de set dies per a Barcelona (cal Wi-Fi).
 noticies|Notícies|1|13756|6e332428|Titulars de canals RSS, desats per llegir sense connexió.
+lector|Lector|1|46720|31c29017|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
