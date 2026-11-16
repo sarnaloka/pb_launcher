@@ -14,6 +14,8 @@ typedef void (*iv_dialoghandler)(int button);
 #define FLASHDIR "./flash"
 #define EVT_INIT 21
 #define EVT_EXIT 22
+#define EVT_NET_CONNECTED 256
+#define EVT_NET_DISCONNECTED 257
 #define EVT_SHOW 23
 #define EVT_KEYPRESS 25
 #define EVT_POINTERUP 29

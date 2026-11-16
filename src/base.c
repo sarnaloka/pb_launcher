@@ -10,10 +10,10 @@
 #define SYSDIR FLASHDIR "/system/escriptori"
 #define PKGDIR SYSDIR "/packages"
 
-enum { V_DESK, V_STORE, V_PKG, V_SYSTEM, V_QUICK, V_HOME };
+enum { V_DESK, V_STORE, V_PKG, V_SYSTEM, V_QUICK, V_HOME, V_AVISOS };
 enum { A_NONE, A_BACK, A_HOME, A_PREV, A_NEXT, A_EXIT, A_APP, A_STORE_REFRESH, A_STORE_ALL, A_PKG, A_PKG_INSTALL, A_PKG_REMOVE,
        A_UPD_CHECK, A_UPD_INSTALL, A_WIFI,
-       A_QUICK, A_WIDGET, A_QWIFI, A_QLIGHT_DN, A_QLIGHT_UP, A_QCLEAN, A_QGO, A_HE_TOGGLE, A_HE_UP, A_HE_DN };          /* les accions dels paquets comencen a 100 */
+       A_QUICK, A_WIDGET, A_QWIFI, A_QLIGHT_DN, A_QLIGHT_UP, A_QCLEAN, A_QGO, A_HE_TOGGLE, A_HE_UP, A_HE_DN, A_AVISOS, A_AV_ONE, A_AV_READ, A_AV_CLEAR };          /* les accions dels paquets comencen a 100 */
 typedef struct { int x, y, w, h, act, arg; } Hit;
 #define MAXSTACK 24
 #define MAXHITS 400
@@ -48,7 +48,7 @@ static int mod_load(const char *id) {
   if (!dl) return -1;
   fn = (Module *(*)(const Host *))dlsym(dl, "escriptori_module");
   m = fn ? fn(&host) : NULL;
-  if (!m || m->api != ESC_API || !m->fn_draw || !m->name) { dlclose(dl); return -2; }
+  if (!m || (m->api != ESC_API && m->api != ESC_API_MIN) || !m->fn_draw || !m->name) { dlclose(dl); return -2; }
   drop_module_views();
   for (i = nmods; i > 0 && strcasecmp(mods[i - 1].m->name, m->name) > 0; i--) mods[i] = mods[i - 1];
   mods[i].dl = dl; mods[i].m = m; snprintf(mods[i].id, sizeof(mods[i].id), "%s", id);
@@ -136,6 +136,7 @@ static int write_file(const char *path, const char *data, long len) {
   if (rename(part, path) != 0) { remove(path); if (rename(part, path) != 0) { remove(part); return -1; } }
   return 0;
 }
+static void pkg_notify(void);
 static int store_refresh(void) {
   char url[300], *b; int len = 0;
   snprintf(url, sizeof(url), UPD_BASE "packages/index.txt?t=%ld&r=%d", (long)time(NULL), rand());
@@ -146,6 +147,7 @@ static int store_refresh(void) {
   write_file(PKGDIR "/index.txt", b, len);
   free(b);
   cat_load();
+  pkg_notify();
   return 0;
 }
 /* 0 correcte; -1 xarxa; -2 la descàrrega no quadra; -3 no es pot desar; -4 no es pot carregar */
@@ -195,6 +197,7 @@ static void fmt_size(char *out, int sz, long b) {
 static int updState;            /* 0 sense comprovar, 1 al dia, 2 hi ha versió nova, 3 instal·lada, -1 error */
 static int updBuild; static long updSize; static unsigned long updCrc; static char updNotes[300], updName[32], selfPath[600];
 /* version.txt: 1 compilació, 2 mida, 3 CRC32 hex, 4 novetats, 5 nom de la versió */
+static void avisos_add(const char *src, const char *title, const char *text);
 static void upd_check(void) {
   char url[300], *b, *l[5]; int k;
   snprintf(url, sizeof(url), UPD_BASE "version.txt?t=%ld&r=%d", (long)time(NULL), rand());
@@ -211,6 +214,7 @@ static void upd_check(void) {
   if (!updName[0]) snprintf(updName, sizeof(updName), "%d", updBuild);
   free(b);
   updState = updBuild > APP_BUILD ? 2 : 1;
+  if (updState == 2) { char t[120]; snprintf(t, sizeof(t), "Versió %s", updName); avisos_add("Sistema", "Actualització disponible", t); }
 }
 static void upd_install(void) {
   char url[300], *b; int len = 0;
@@ -418,6 +422,83 @@ static void home_toggle(int key) {
   home_save();
 }
 
+
+/* ───────────── avisos ───────────── */
+#define MAXAV 40
+typedef struct { long t; int read; char src[24], title[80], text[200]; } Aviso;
+static Aviso av[MAXAV]; static int nAv;
+static int avisos_unread(void) { int i, n = 0; for (i = 0; i < nAv; i++) if (!av[i].read) n++; return n; }
+static void avisos_save(void) {
+  FILE *f = fopen(CFG "escriptori_avisos.txt", "w"); int i;
+  if (!f) return;
+  for (i = 0; i < nAv; i++) fprintf(f, "%ld|%d|%s|%s|%s\n", av[i].t, av[i].read, av[i].src, av[i].title, av[i].text);
+  fclose(f);
+}
+static void avisos_load(void) {
+  FILE *f = fopen(CFG "escriptori_avisos.txt", "r"); char ln[400], *p[4], *q;
+  nAv = 0;
+  if (!f) return;
+  while (nAv < MAXAV && fgets(ln, sizeof(ln), f)) {
+    int k; ln[strcspn(ln, "\r\n")] = 0; q = ln;
+    for (k = 0; k < 4; k++) { p[k] = q; q = q ? strchr(q, '|') : NULL; if (!q) break; *q++ = 0; }
+    if (k < 4 || !q) continue;
+    av[nAv].t = atol(p[0]); av[nAv].read = atoi(p[1]);
+    snprintf(av[nAv].src, sizeof(av[nAv].src), "%s", p[2]); snprintf(av[nAv].title, sizeof(av[nAv].title), "%s", p[3]); snprintf(av[nAv].text, sizeof(av[nAv].text), "%s", q);
+    nAv++;
+  }
+  fclose(f);
+}
+/* Afegeix un avís (el més nou primer). Si ja n'hi ha un de no llegit amb el mateix origen i títol, el substitueix. No refresca la pantalla. */
+static void avisos_add(const char *src, const char *title, const char *text) {
+  Aviso a; int i;
+  memset(&a, 0, sizeof(a)); a.t = (long)time(NULL);
+  snprintf(a.src, sizeof(a.src), "%s", src ? src : ""); snprintf(a.title, sizeof(a.title), "%s", title ? title : ""); snprintf(a.text, sizeof(a.text), "%s", text ? text : "");
+  for (i = 0; a.src[i]; i++) if (a.src[i] == '|' || a.src[i] == '\n') a.src[i] = ' ';
+  for (i = 0; a.title[i]; i++) if (a.title[i] == '|' || a.title[i] == '\n') a.title[i] = ' ';
+  for (i = 0; a.text[i]; i++) if (a.text[i] == '|' || a.text[i] == '\n') a.text[i] = ' ';
+  for (i = 0; i < nAv; i++) if (!av[i].read && !strcmp(av[i].src, a.src) && !strcmp(av[i].title, a.title)) { memmove(&av[1], &av[0], sizeof(Aviso) * (size_t)i); av[0] = a; avisos_save(); return; }
+  if (nAv >= MAXAV) nAv = MAXAV - 1;
+  memmove(&av[1], &av[0], sizeof(Aviso) * (size_t)nAv); av[0] = a; nAv++;
+  avisos_save();
+}
+/* Avisos del sistema; s'avalua cada minut. */
+static void avisos_poll(void) {
+  static int lowArmed = 1; int p = GetBatteryPower();
+  if (p >= 0 && p <= 15 && !IsCharging() && lowArmed) { char t[80]; snprintf(t, sizeof(t), "Queda un %d%% de bateria.", p); avisos_add("Sistema", "Bateria baixa", t); lowArmed = 0; }
+  if (p > 25 || IsCharging()) lowArmed = 1;
+}
+static void pkg_notify(void) {
+  int i, pend = 0; char t[80];
+  for (i = 0; i < ncat; i++) { int pv = pkg_ver(cat[i].id); if (pv && (pv < cat[i].ver || mod_find(cat[i].id) < 0)) pend++; }
+  if (!pend) return;
+  snprintf(t, sizeof(t), pend == 1 ? "Hi ha %d paquet per actualitzar." : "Hi ha %d paquets per actualitzar.", pend);
+  avisos_add("Sistema", "Paquets per actualitzar", t);
+}
+static void v_avisos(View *v) {
+  int y = TOP, bh = 2 * U + U / 4, rh = 4 * U, per, i, bw = (SW - U - U / 3) / 2; char sub[100];
+  snprintf(sub, sizeof(sub), "%d no llegits · toca un avís per marcar-lo com a llegit i, un cop llegit, per esborrar-lo", avisos_unread());
+  header("Avisos", sub);
+  if (nAv) {
+    button(U / 2, y, bw, bh, "Marca-ho tot llegit", 0, A_AV_READ, 0);
+    button(U / 2 + bw + U / 3, y, bw, bh, "Esborra-ho tot", 0, A_AV_CLEAR, 0);
+    y += bh + U / 3;
+  } else { SetFont(fText, BLACK); DrawTextRect(U / 2, y, SW - U, 3 * U, "No tens cap avís.", ALIGN_LEFT | VALIGN_TOP); }
+  per = (BOTTOM - y) / rh; if (per < 1) per = 1;
+  pages = nAv ? (nAv + per - 1) / per : 1; if (v->page >= pages) v->page = pages - 1;
+  for (i = v->page * per; i < nAv && i < (v->page + 1) * per; i++) {
+    int ry = y + (i - v->page * per) * rh, nw = 4 * U, un = !av[i].read; char tm[32], head[120]; time_t tt = (time_t)av[i].t;
+    ui_card(U / 2, ry, SW - U, rh - U / 4, un ? UI_LINE : UI_SOFT);
+    if (un) rfill(U, ry + U / 2 + U / 8, U / 2, U / 2, U / 4, BLACK);
+    strftime(tm, sizeof(tm), "%d/%m %H:%M", localtime(&tt));
+    snprintf(head, sizeof(head), "%s", av[i].title);
+    SetFont(fBold, un ? BLACK : DGRAY); DrawTextRect(U + U, ry + U / 4, SW - 2 * U - U - nw - U / 2, U * 3 / 2, head, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    SetFont(fSmall, DGRAY); DrawTextRect(SW - U - nw, ry + U / 4, nw, U * 3 / 2, tm, ALIGN_RIGHT | VALIGN_MIDDLE);
+    snprintf(head, sizeof(head), "%s · %s", av[i].src, av[i].text);
+    SetFont(fSmall, DGRAY); DrawTextRect(U + U, ry + U * 7 / 4, SW - 3 * U, rh - U * 2 - U / 4, head, ALIGN_LEFT | VALIGN_TOP | DOTS);
+    add_hit(U / 2, ry, SW - U, rh - U / 4, A_AV_ONE, i);
+  }
+}
+
 /* ───────────── tauler ràpid ───────────── */
 static int light_get(void) { int v = GetFrontlightState(); return v == INT_MIN ? -1 : v; }
 static void v_quick(View *v) {
@@ -452,6 +533,11 @@ static void v_quick(View *v) {
   snprintf(st, sizeof(st), "versió %s", APP_VERNAME);
   ui_tile(x1, y, tw, th, "Sistema", st, 0, A_QGO, 0);
   icon_system(x1 + U / 2, y + U / 4, 2 * U + U / 2);
+  /* fila 4: avisos */
+  y += th + gap;
+  { int nu = avisos_unread(); if (nu) snprintf(st, sizeof(st), nu == 1 ? "%d de nou" : "%d de nous", nu); else snprintf(st, sizeof(st), "res de nou"); }
+  ui_tile(x0, y, tw, th, "Avisos", st, 0, A_AVISOS, 0);
+  ic_bell(x0 + U + U / 2, y + U + U / 2, U * 3 / 2, BLACK, WHITE);
 }
 static void v_store(View *v) {
   int y = TOP, bh = 2 * U + U / 4, rh = 3 * U, per, i, bw = (SW - U - U / 3) / 2, inst = 0, pend = 0; char sub[100];
@@ -541,6 +627,7 @@ static void render(void) {
       case V_SYSTEM: v_system(v); break;
       case V_QUICK: v_quick(v); break;
       case V_HOME: v_home(v); break;
+      case V_AVISOS: v_avisos(v); break;
     }
     if (v->page < 0) v->page = 0;
     footer(v->page);
@@ -556,8 +643,14 @@ static void draw(int full) {
 static int desk_tick(void) {
   View *v = &stack[depth - 1];
   if (v->mod >= 0 || v->type != V_DESK) return 0;
-  render();
-  PartialUpdate(0, 0, SW, SB);
+  { int oS[NSYS], oX[40], oW[40], oN = sbN, i, lay = 0, x0 = SW, x1 = 0;
+    memcpy(oS, sbSig, sizeof(oS)); memcpy(oX, sbX, sizeof(oX)); memcpy(oW, sbW, sizeof(oW));
+    render();
+    if (oN != sbN) lay = 1;
+    for (i = 0; i < 40 && !lay; i++) if (oX[i] != sbX[i] || oW[i] != sbW[i]) lay = 1;
+    if (lay) { x0 = sbR0; x1 = SW; }
+    else for (i = 0; i < NSYS; i++) if (oS[i] != sbSig[i] && sbW[i] > 0) { if (sbX[i] - 3 < x0) x0 = sbX[i] - 3; if (sbX[i] + sbW[i] + 3 > x1) x1 = sbX[i] + sbW[i] + 3; }
+    if (x1 > x0) PartialUpdate(x0 < 0 ? 0 : x0, 0, (x1 > SW ? SW : x1) - (x0 < 0 ? 0 : x0), SB); }
   if (homeHasClock && homeRectH > 0) PartialUpdate(0, homeRectY, SW, homeRectH);
   return 1;
 }
@@ -613,6 +706,10 @@ static void act(int a, int arg) {
     case A_UPD_CHECK: upd_check(); draw(1); break;
     case A_UPD_INSTALL: upd_install(); draw(1); break;
     case A_WIFI: NetConnect(NULL); draw(1); break;
+    case A_AVISOS: if (!(v->mod < 0 && v->type == V_AVISOS)) { push_view(-1, V_AVISOS, 0, 0, 0, NULL); draw(1); } break;
+    case A_AV_ONE: if (arg >= 0 && arg < nAv) { if (!av[arg].read) av[arg].read = 1; else { memmove(&av[arg], &av[arg + 1], sizeof(Aviso) * (size_t)(nAv - arg - 1)); nAv--; } avisos_save(); draw(0); } break;
+    case A_AV_READ: { int i; for (i = 0; i < nAv; i++) av[i].read = 1; avisos_save(); draw(0); } break;
+    case A_AV_CLEAR: nAv = 0; avisos_save(); draw(0); break;
     case A_QUICK: if (!(v->mod < 0 && v->type == V_QUICK)) { push_view(-1, V_QUICK, 0, 0, 0, NULL); draw(1); } break;
     case A_WIDGET:
       if (arg < 0 || arg >= nwl) break;
@@ -651,10 +748,10 @@ static int handler(int type, int par1, int par2) {
       host.api = ESC_API; host.SW = SW; host.SH = SH; host.U = U; host.SB = SB;
       host.fTitle = fTitle; host.fBold = fBold; host.fText = fText; host.fSmall = fSmall; host.fBig = fBig; host.fHuge = fHuge;
       host.pages = &pages; host.add_hit = add_hit; host.button = button; host.header = header; host.redraw = draw; host.push = h_push; host.pop = h_pop;
-      host.say = say; host.ask = ask; host.confirm = confirm; host.net_get = net_get_t;
+      host.say = say; host.ask = ask; host.confirm = confirm; host.net_get = net_get_t; host.notify = avisos_add; host.status_changed = sb_refresh;
       depth = 1; memset(&stack[0], 0, sizeof(View)); stack[0].type = V_DESK; stack[0].mod = -1;
       mkdir(SYSDIR, 0777); mkdir(PKGDIR, 0777);
-      mods_scan(); cat_load();
+      mods_scan(); cat_load(); avisos_load();
       break;
     case EVT_SHOW:
     case EVT_FOREGROUND:
@@ -664,6 +761,10 @@ static int handler(int type, int par1, int par2) {
       break;
     case EVT_BACKGROUND:
       ClearTimer(clock_tick);
+      break;
+    case EVT_NET_CONNECTED:
+    case EVT_NET_DISCONNECTED:
+      sb_refresh();                        /* el Wi-Fi ha canviat: només la peça del Wi-Fi */
       break;
     case EVT_POINTERUP:
       for (i = nhits - 1; i >= 0; i--)

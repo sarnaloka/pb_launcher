@@ -6,11 +6,11 @@ i escriu en català tot el text de la interfície.
 ## Què és cada cosa
 
 - `src/base.c`, `src/base_gen.h`: sistema base (escriptori, barra d'estat, gestor de paquets, pantalla Sistema, actualització).
-- `src/mod.h`: interfície entre el sistema base (`Host`) i els paquets (`Module`, `Widget`, `StatusItem`). `ESC_API` n'és la versió. Inclou les formes i icones del sistema de disseny; `src/ui.h` hi afegeix els components amb text i tacte (files, interruptors, rajoles).
+- `src/mod.h`: interfície entre el sistema base (`Host`) i els paquets (`Module`, `Widget`, `StatusItem`). `ESC_API` n'és la versió (3; els paquets compatibles amb la 2 usen `ESC_API_MIN`). Inclou les formes i icones del sistema de disseny; `src/ui.h` hi afegeix els components amb text i tacte (files, interruptors, rajoles).
 - `src/apps/<id>.c`: un fitxer per paquet (Bus AMB té a més `src/apps/busamb/`). `src/packages.txt`: nom, versió i descripció de cada paquet.
 - `packages/`: paquets compilats (`.pkg`) i catàleg `index.txt`. `Escriptori.app` i `version.txt`: sistema base publicat.
 - `src/shim/`: substitut de la biblioteca gràfica per provar a l'ordinador. `test/`: guions de prova i dades d'exemple.
-- `docs/NOVA_APP.md`: com crear un paquet nou.
+- `docs/NOVA_APP.md`: com crear un paquet nou (components, widgets, ranures d'estat i avisos).
 
 ## Flux de treball
 

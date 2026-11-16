@@ -11,7 +11,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#define ESC_API 2
+#define ESC_API 3                  /* 3 = Host.notify i Host.status_changed. Els paquets que no els necessiten poden declarar ESC_API_MIN */
+#define ESC_API_MIN 2
 #define MOD_TICK 1                 /* el paquet vol redibuixar-se cada minut */
 #define NOTELEN 400
 #define MAXL 300
@@ -32,6 +33,9 @@ typedef struct Host {
   void (*ask)(const char *title, const char *initial, void (*fn)(const char *));
   void (*confirm)(const char *title, const char *text, const char *yes, void (*fn)(void));
   char *(*net_get)(const char *url, int *len, int timeout);
+  /* només si host->api >= 3 */
+  void (*notify)(const char *src, const char *title, const char *text);   /* afegeix un avís (src = nom del paquet) */
+  void (*status_changed)(void);                                          /* l'estat d'una ranura ha canviat: repinta només la barra */
 } Host;
 /* Ranura de la barra d'estat: un indicador petit. width() retorna l'amplada en píxels (0 = ara no es mostra);
    draw() el dibuixa dins el rectangle x,y,w,h amb el color fg. La barra és NEGRA: fg és blanc i el fons, negre (rcard(..., fg, BLACK)).
@@ -108,6 +112,15 @@ static UNUSED void ic_signal(int cx, int cy, int h, int level, int onc, int offc
     int xs = h * 4 / 10, t = bw * 3 / 5 > 2 ? bw * 3 / 5 : 2, top = y1 - h;
     thick(x0, top, x0 + xs, top + xs, t, cross); thick(x0, top + xs, x0 + xs, top, t, cross);
   }
+}
+/* Campana (avisos): silueta plena amb cúpula, vora ampla, boleta a dalt i batall. bg = fons (per al forat del cos). */
+static UNUSED void ic_bell(int cx, int cy, int h, int col, int bg) {
+  int bw = h * 62 / 100, top = cy - h / 2, kn = h / 9 > 2 ? h / 9 : 2, bt = top + kn + 1, bh = h * 56 / 100, fw = h * 94 / 100, fh = h * 17 / 100 > 2 ? h * 17 / 100 : 2;
+  rfill(cx - kn, top, 2 * kn, kn + 2, kn, col);
+  rfill(cx - bw / 2, bt, bw, bh, bw / 2, col);
+  rfill(cx - fw / 2, bt + bh - fh / 2, fw, fh, fh / 2, col);
+  rfill(cx - h / 9, bt + bh + fh / 2 + 1, 2 * (h / 9), h / 8 > 2 ? h / 8 : 2, h / 9, col);
+  (void)bg;
 }
 static UNUSED void ic_sun(int cx, int cy, int r, int col) {
   int k, t = r / 8 > 2 ? r / 8 : 2;

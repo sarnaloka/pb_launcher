@@ -70,3 +70,19 @@ El sistema dibuixa la targeta i crida `draw` amb l'interior. En tocar-lo s'obre 
 
 Un indicador petit a la barra superior: `StatusItem { id, width, draw }`. `width(h)` retorna l'amplada en píxels (0 = ara no es mostra) i `draw(x, y, w, h, color)` el dibuixa. S'avalua a cada refresc de la barra, així que ha de ser barat. Vegeu `tasques.c` (comptador de tasques pendents). Es passen com `1, SI` just abans dels widgets a `Module`.
 
+
+## Avisos (ESC_API 3)
+
+El sistema base guarda els avisos a `system/config/escriptori_avisos.txt` (màx. 40) i els mostra amb una campana i un comptador a la barra d'estat, al tauler ràpid i a la vista «Avisos». Un paquet n'afegeix un amb:
+
+```c
+if (H->api >= 3 && H->notify) H->notify("Notícies", "Notícies actualitzades", "3 titulars nous.");
+```
+
+- `notify(origen, títol, text)`: si ja hi ha un avís sense llegir amb el mateix origen i títol, el substitueix. No refresca la pantalla.
+- `status_changed()`: avisa que l'estat d'una ranura de la barra ha canviat; el sistema repinta només la barra.
+- Compatibilitat: els paquets que només usen `notify` declaren `ESC_API_MIN` al `Module` i comproven `H->api >= 3`, així continuen carregant-se en un sistema base antic.
+
+## Barra d'estat: refresc per peces
+
+Cada peça del sistema (hora, bateria, Wi-Fi, xarxa, avisos) té una signatura d'estat (`sb_sig`). `sb_refresh()` repinta la barra a la memòria i només actualitza la pantalla als rectangles de les peces que han canviat; si res ha canviat, no hi ha cap refresc. El canvi de minut només refresca l'hora, i `EVT_NET_CONNECTED/DISCONNECTED` només el Wi-Fi.

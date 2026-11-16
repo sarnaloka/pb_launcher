@@ -60,30 +60,52 @@ static void si_batt_d(int x, int y, int w, int h, int fg) {
     }
   }
 }
-/* Wi-Fi: barres de senyal i, al costat, el text «WIFI». Connectat: barres segons el senyal. Encès sense connexió o apagat:
-   barres apagades i una petita «x» a dalt a l'esquerra (text en gris clar si és encès i en gris fosc si és apagat). */
+/* Wi-Fi: barres de senyal. Connectat: barres segons el senyal. Encès sense connexió o apagat: barres apagades i una petita «x». */
 static int wifi_level(void) {                  /* 0 = sense connexió; 1..4 = barres */
   int q, bars;
   if (!(QueryNetwork() & NET_WIFIREADY)) return 0;
   q = GetNetSignalQuality(); bars = q < 0 ? 4 : (q * 4 + 4) / 5;
   return bars < 1 ? 1 : bars > 4 ? 4 : bars;
 }
-static int si_wifi_w(int h) { (void)h; SetFont(fSmall, WHITE); return ic_signal_w(ICH) + U / 4 + StringWidth("WIFI"); }
+static int si_wifi_w(int h) { (void)h; return ic_signal_w(ICH); }
 static void si_wifi_d(int x, int y, int w, int h, int fg) {
-  int net = QueryNetwork(), off = !(net & NET_WIFI) && !(net & NET_WIFIREADY), lv = wifi_level(), iw = ic_signal_w(ICH);
+  int lv = wifi_level();
   (void)w;
-  ic_signal(x + iw / 2, y + h / 2, ICH, lv, fg, DGRAY, lv ? -1 : fg);
-  SetFont(fSmall, lv ? fg : off ? DGRAY : LGRAY);
-  DrawTextRect(x + iw + U / 4, y, StringWidth("WIFI") + 2, h, "WIFI", ALIGN_LEFT | VALIGN_MIDDLE);
+  ic_signal(x + ic_signal_w(ICH) / 2, y + h / 2, ICH, lv, fg, DGRAY, lv ? -1 : fg);
+}
+/* Avisos: campana i comptador de no llegits; no es mostra si no n'hi ha. */
+static int avisos_unread(void);
+static int si_av_w(int h) { char t[16]; int n = avisos_unread(); (void)h; if (n <= 0) return 0; snprintf(t, sizeof(t), "%d", n > 99 ? 99 : n); SetFont(fSmall, WHITE); return ICH + U / 4 + StringWidth(t); }
+static void si_av_d(int x, int y, int w, int h, int fg) {
+  char t[16]; int n = avisos_unread();
+  (void)w; snprintf(t, sizeof(t), "%d", n > 99 ? 99 : n);
+  ic_bell(x + ICH / 2, y + h / 2, ICH, fg, BLACK);
+  SetFont(fSmall, fg); DrawTextRect(x + ICH + U / 4, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
 }
 static int si_net_w(int h) { (void)h; return netAct ? ICH * 9 / 10 : 0; }
 static void si_net_d(int x, int y, int w, int h, int fg) { ic_spinner(x + w / 2, y + h / 2, w / 2, fg, LGRAY, DGRAY); }
 static int status_modules(const StatusItem **out, int max);
+#define NSYS 5
+/* Geometria i estat de cada peça de la barra: permet repintar i actualitzar només la peça que canvia. */
+static int sbX[40], sbW[40], sbN, sbSig[NSYS], sbR0;
+static int sb_sig(int i) {
+  int n;
+  switch (i) {
+    case 0: return (int)(time(NULL) / 60 % 1000000);
+    case 1: return batt_pct() * 2 + (IsCharging() ? 1 : 0);
+    case 2: n = QueryNetwork(); return wifi_level() * 4 + ((n & NET_WIFI) ? 1 : 0) + ((n & NET_WIFIREADY) ? 2 : 0);
+    case 3: return netAct;
+    default: return avisos_unread();
+  }
+}
 static void statusbar(int withHits) {
-  static const StatusItem SYS[4] = { { "hora", si_time_w, si_time_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "xarxa", si_net_w, si_net_d } };
-  const StatusItem *list[40]; int n = 0, i, x = SW - U / 2, nb = SB * 11 / 10, r = ICH / 2, act = depth > 1 ? WHITE : DGRAY, gap = U * 7 / 10;
-  for (i = 0; i < 4; i++) list[n++] = &SYS[i];
+  static const StatusItem SYS[NSYS] = { { "hora", si_time_w, si_time_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "xarxa", si_net_w, si_net_d }, { "avisos", si_av_w, si_av_d } };
+  const StatusItem *list[40]; int n = 0, i, x = SW - U / 2, hx0 = 0, nb = SB * 11 / 10, r = ICH / 2, act = depth > 1 ? WHITE : DGRAY, gap = U * 7 / 10;
+  for (i = 0; i < NSYS; i++) list[n++] = &SYS[i];
   n += status_modules(list + n, 40 - n);
+  for (i = 0; i < 40; i++) { sbX[i] = 0; sbW[i] = 0; }
+  sbN = n; sbR0 = U / 4 + 3 * nb;
+  for (i = 0; i < NSYS; i++) sbSig[i] = sb_sig(i);
   FillArea(0, 0, SW, SB, BLACK);
   icon_back(U / 4 + nb / 2, SB / 2, r, act);
   icon_home(U / 4 + nb + nb / 2, SB / 2, r, act);
@@ -97,16 +119,40 @@ static void statusbar(int withHits) {
     int w = list[i]->width(SB);
     if (w <= 0) continue;
     if (x - w < U / 4 + 3 * nb + U) break;
-    x -= w; list[i]->draw(x, 0, w, SB, WHITE); x -= gap;
+    x -= w; sbX[i] = x; sbW[i] = w; list[i]->draw(x, 0, w, SB, WHITE);
+    if (i == 4 && withHits) { hx0 = x; add_hit(hx0 - gap / 2, 0, w + gap, SB, A_AVISOS, 0); }
+    x -= gap;
   }
+}
+/* Repinta la barra a la memòria i actualitza la pantalla només a les peces que han canviat (cap refresc si no ha canviat res).
+   Si una peça canvia d'amplada i la resta es desplaça, s'actualitza tota la zona dreta. */
+static void sb_refresh(void) {
+  int oSig[NSYS], oX[40], oW[40], oN = sbN, i, lay = 0, x0 = SW, x1 = 0, ch = 0;
+  memcpy(oSig, sbSig, sizeof(oSig)); memcpy(oX, sbX, sizeof(oX)); memcpy(oW, sbW, sizeof(oW));
+  statusbar(0);
+  if (oN != sbN) lay = 1;
+  for (i = 0; i < 40 && !lay; i++) if (oX[i] != sbX[i] || oW[i] != sbW[i]) lay = 1;
+  if (lay) { x0 = sbR0; x1 = SW; ch = 1; }
+  else for (i = 0; i < NSYS; i++) if (oSig[i] != sbSig[i] && sbW[i] > 0) {
+    int a = sbX[i] - 3, b = sbX[i] + sbW[i] + 3;
+    if (a < x0) x0 = a;
+    if (b > x1) x1 = b;
+    ch = 1;
+  }
+  if (!ch) return;
+  if (x0 < 0) x0 = 0;
+  if (x1 > SW) x1 = SW;
+  PartialUpdate(x0, 0, x1 - x0, SB);
 }
 static void draw(int full);
 static int tick_redraw(void);
 static int desk_tick(void);
+static void avisos_poll(void);
 static void clock_tick(void) {
   time_t now = time(NULL);
+  avisos_poll();
   if (tick_redraw()) { if (!desk_tick()) draw(0); }
-  else { statusbar(0); PartialUpdate(0, 0, SW, SB); }
+  else sb_refresh();
   SetWeakTimer("busamb_clock", clock_tick, (int)(61 - now % 60) * 1000);
 }
 static void header(const char *title, const char *sub) {
@@ -176,8 +222,7 @@ static unsigned long crc32_buf(const unsigned char *b, long n) {
 static void net_activity(int flags) {
   if (netAct == flags) return;
   netAct = flags;
-  statusbar(0);
-  PartialUpdate(0, 0, SW, SB);
+  sb_refresh();
 }
 static char *net_get_t(const char *url, int *outLen, int timeout) {
   int size = 0; void *buf; char *copy;

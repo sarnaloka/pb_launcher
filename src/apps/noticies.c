@@ -86,7 +86,10 @@ static void rss_refresh(void) {
   }
   if (!okFeeds) { say("No s'ha pogut descarregar cap canal. Comprova el Wi-Fi."); return; }
   st_save(&news);
-  (void)total;
+  if (total > 0 && H->api >= 3 && H->notify) {         /* només amb un sistema base que té avisos */
+    char t[80]; snprintf(t, sizeof(t), total == 1 ? "%d titular nou." : "%d titulars nous.", total);
+    H->notify("Notícies", "Notícies actualitzades", t);
+  }
 }
 static void v_rss(View *v) {
   int y = TOP, bh = 2 * U + U / 4, rh = 2 * U + U * 3 / 4, per, i, bw = (SW - U - U / 3) / 2; char sub[64], title[400];
@@ -176,5 +179,5 @@ static void mod_action(View *v, int a, int arg) {
 static void mod_open(View *v) {
   (void)v;
 }
-static Module M = { ESC_API, "noticies", "Notícies", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
+static Module M = { ESC_API_MIN, "noticies", "Notícies", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }

@@ -17,8 +17,9 @@ char *DrawTextRect(int x, int y, int w, int h, const char *s, int flags) { Op *o
   if (w <= 0 || h <= 0) { fprintf(stderr, "BAD RECT %d %d %d %d '%s'\n", x, y, w, h, s); }
   o = add('T', x, y, w, h, curColor); o->size = cur->size; o->bold = cur->bold; o->flags = flags; snprintf(o->text, sizeof(o->text), "%s", s); { char *q; for (q = o->text; *q; q++) if (*q == '\n' || *q == '\t') *q = ' '; } return NULL; }
 void FullUpdate(void) { updates++; } void SoftUpdate(void) { updates++; }
-int GetBatteryPower(void) { return 62; } int IsCharging(void) { return 0; } int QueryNetwork(void) { const char *e = getenv("NET"); return e ? (int)strtol(e, NULL, 0) : 0x0202; }
-void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int GetNetSignalQuality(void) { return 3; }
+static int simBatt = 62, simChg, simNet = -1, simSig = 3;
+int GetBatteryPower(void) { return simBatt; } int IsCharging(void) { return simChg; } int QueryNetwork(void) { const char *e = getenv("NET"); return simNet >= 0 ? simNet : e ? (int)strtol(e, NULL, 0) : 0x0202; }
+void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int GetNetSignalQuality(void) { return simSig; }
 static iv_timerproc tickProc;
 void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { (void)n; tickProc = tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { if (tickProc == tp) tickProc = NULL; } static void shot(const char *name);
 void PartialUpdate(int x, int y, int w, int h) { static int n; if (getenv("PULOG")) printf("PU %d %d %d %d\n", x, y, w, h); if (getenv("PUSHOT")) { char fn[64]; snprintf(fn, sizeof(fn), "pu%d.txt", ++n); shot(fn); } }
@@ -47,5 +48,11 @@ void InkViewMain(iv_handler h) { char ln[300]; H = h; h(EVT_INIT, 0, 0); h(EVT_S
     else if (sscanf(ln, "dlg %d", &x) == 1) dlgBtn = x;
     else if (!strncmp(ln, "shot ", 5)) shot(ln + 5);
     else if (!strcmp(ln, "tick")) { if (tickProc) tickProc(); }
+    else if (sscanf(ln, "batt %d", &x) == 1) simBatt = x;
+    else if (sscanf(ln, "charge %d", &x) == 1) simChg = x;
+    else if (!strncmp(ln, "net ", 4)) simNet = (int)strtol(ln + 4, NULL, 0);
+    else if (sscanf(ln, "sig %d", &x) == 1) simSig = x;
+    else if (sscanf(ln, "evt %d", &x) == 1) h(x, 0, 0);
+    else if (!strncmp(ln, "echo ", 5)) printf("%s\n", ln + 5);
   }
   printf("updates %d\n", updates); h(EVT_EXIT, 0, 0); }
