@@ -4,7 +4,7 @@ rellotge|Rellotge|2|Hora, data i calendari del mes.
 notes|Notes|2|Notes curtes desades al lector.
 calculadora|Calculadora|2|Les quatre operacions, percentatge i decimals.
 fitxers|Fitxers|2|Navega per carpetes; obre, mou i esborra fitxers.
-tasques|Tasques|2|Llista de tasques amb caselles.
+tasques|Tasques|3|Llista de tasques amb caselles.
 conversor|Conversor|2|Longitud, pes, volum i temperatura.
 agenda|Agenda|2|Calendari amb esdeveniments per dia.
 sudoku|Sudoku|2|Partides amb solució única que es desen soles.

@@ -3,7 +3,7 @@ rellotge|Rellotge|2|9636|f0b52ec9|Hora, data i calendari del mes.
 notes|Notes|2|9616|abc64f01|Notes curtes desades al lector.
 calculadora|Calculadora|2|9692|d42e39d3|Les quatre operacions, percentatge i decimals.
 fitxers|Fitxers|2|10332|f01eef57|Navega per carpetes; obre, mou i esborra fitxers.
-tasques|Tasques|2|9684|1e838cb6|Llista de tasques amb caselles.
+tasques|Tasques|3|9684|bc909089|Llista de tasques amb caselles.
 conversor|Conversor|2|9652|769bd990|Longitud, pes, volum i temperatura.
 agenda|Agenda|2|13796|05fe8183|Calendari amb esdeveniments per dia.
 sudoku|Sudoku|2|9604|e99ae040|Partides amb solució única que es desen soles.
