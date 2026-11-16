@@ -179,11 +179,8 @@ static char *net_get_t(const char *url, int *outLen, int timeout) {
   int size = 0; void *buf; char *copy;
   if (!(QueryNetwork() & NET_CONNECTED)) NetConnect(NULL);
   if (!(QueryNetwork() & NET_CONNECTED)) return NULL;
-  net_activity(NETA_DOWN);
-  ShowHourglass();
+  net_activity(NETA_DOWN);                 /* única actualització pròpia (les fletxes, un cop per operació); sense rellotge de sorra */
   buf = QuickDownload(url, &size, timeout);
-  HideHourglass();
-  net_activity(0);
   if (!buf || size <= 0) { if (buf) free(buf); return NULL; }
   copy = (char *)malloc((size_t)size + 1);
   if (copy) { memcpy(copy, buf, (size_t)size); copy[size] = 0; }

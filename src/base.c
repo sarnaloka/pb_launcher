@@ -527,6 +527,7 @@ static int tick_redraw(void) {
 static void render(void) {
   View *v = &stack[depth - 1];
   int pass;
+  netAct = 0;                              /* qualsevol redibuixat completa l'indicador de xarxa */
   if (v->mod >= nmods) { depth = 1; v = &stack[0]; }
   for (pass = 0; pass < 2; pass++) {
     int before = v->page;
