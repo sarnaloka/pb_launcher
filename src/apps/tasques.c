@@ -38,9 +38,9 @@ static void w_pending(int x, int y, int w, int h) {
   if (n == 0) snprintf(t, sizeof(t), "Cap de pendent"); else snprintf(t, sizeof(t), n == 1 ? "%d pendent" : "%d pendents", n);
   ui_lv(x, y, w, h, "Tasques", t);
 }
-static int si_w(int h) { int n = todo_pending(); char t[16]; (void)h; if (!n) return 0; snprintf(t, sizeof(t), "%d", n); SetFont(fSmall, WHITE); return h * 4 / 10 + U / 4 + StringWidth(t); }
+static int si_w(int h) { int n = todo_pending(); char t[16]; (void)h; if (!n) return 0; snprintf(t, sizeof(t), "%d", n); SetFont(fSmall, WHITE); return h * 35 / 100 + U / 4 + StringWidth(t); }
 static void si_d(int x, int y, int w, int h, int fg) {
-  int n = todo_pending(), sz = h * 4 / 10; char t[16]; (void)w;
+  int n = todo_pending(), sz = h * 35 / 100; char t[16]; (void)w;
   snprintf(t, sizeof(t), "%d", n);
   rcard(x, y + (h - sz) / 2, sz, sz, 4, 2, fg, BLACK); ic_check(x + sz / 2, y + h / 2, sz * 4 / 10, fg);
   SetFont(fSmall, fg); DrawTextRect(x + sz + U / 4, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE);

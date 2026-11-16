@@ -14,8 +14,8 @@ static void button(int x, int y, int w, int h, const char *label, int inv, int a
    Negra, amb tot en línia del mateix gruix i icones de la mateixa alçada (ICH), centrades en una sola línia.
    A l'esquerra, navegació en cel·les iguals; a la dreta, una llista d'elements amb una sola separació entre grups.
    Els elements són StatusItem (vegeu mod.h): els del sistema (hora, bateria, Wi-Fi, càrrega) i els dels paquets. */
-#define ICH (SB * 4 / 10)                      /* alçada comuna de les icones */
-#define NAVT (SB / 14 > 3 ? SB / 14 : 3)       /* gruix comú de les icones de navegació */
+#define ICH (SB * 46 / 100)                    /* alçada comuna de totes les icones (casella quadrada) */
+#define NAVT (SB / 22 > 3 ? SB / 22 : 3)       /* gruix comú del traç de les icones de línia */
 static void icon_back(int cx, int cy, int r, int col) {
   thick(cx - r, cy, cx + r, cy, NAVT, col);
   thick(cx - r, cy, cx - r / 4, cy - r * 3 / 4, NAVT, col); thick(cx - r, cy, cx - r / 4, cy + r * 3 / 4, NAVT, col);
@@ -32,25 +32,25 @@ static void icon_exit(int cx, int cy, int r, int col) {
    Els bits distingeixen baixada i pujada per si més endavant cal diferenciar-les. */
 enum { NETA_DOWN = 1, NETA_UP = 2 };
 static int netAct;
-static int si_time_w(int h) { (void)h; SetFont(fTitle, WHITE); return StringWidth("00:00"); }
+static int si_time_w(int h) { (void)h; SetFont(fBold, WHITE); return StringWidth("00:00"); }
 static void si_time_d(int x, int y, int w, int h, int fg) {
   char t[16]; time_t now = time(NULL); struct tm *tm = localtime(&now);
   snprintf(t, sizeof(t), "%d:%02d", tm->tm_hour, tm->tm_min);
-  SetFont(fTitle, fg); DrawTextRect(x, y, w, h, t, ALIGN_RIGHT | VALIGN_MIDDLE);
+  SetFont(fBold, fg); DrawTextRect(x, y, w, h, t, ALIGN_RIGHT | VALIGN_MIDDLE);
 }
 static int batt_pct(void) { int p = GetBatteryPower(); return p < 0 ? 0 : p > 100 ? 100 : p; }
-static int si_batt_w(int h) { char t[16]; (void)h; snprintf(t, sizeof(t), "%d%%", batt_pct()); SetFont(fSmall, WHITE); return StringWidth(t) + U / 4 + ICH * 2 + 4; }
+static int si_batt_w(int h) { char t[16]; (void)h; snprintf(t, sizeof(t), "%d%%", batt_pct()); SetFont(fSmall, WHITE); return StringWidth(t) + U / 4 + ICH * 3 / 2 + 5; }
 static void si_batt_d(int x, int y, int w, int h, int fg) {
-  char t[16]; int pct = batt_pct(), bh = ICH, bw = ICH * 2, nw = 4, by = y + (h - bh) / 2, tw, bx, inner;
+  char t[16]; int pct = batt_pct(), bh = ICH * 3 / 4, bw = bh * 2, nw = 3, by = y + (h - bh) / 2, tw, bx, inner;
   (void)w;
   snprintf(t, sizeof(t), "%d%%", pct);
   SetFont(fSmall, fg); tw = StringWidth(t);
   DrawTextRect(x, y, tw, h, t, ALIGN_RIGHT | VALIGN_MIDDLE);
   bx = x + tw + U / 4;
-  rcard(bx, by, bw, bh, 4, 2, fg, BLACK);
-  rfill(bx + bw, by + bh / 4, nw, bh - 2 * (bh / 4), 2, fg);
-  inner = (bw - 8) * pct / 100; if (inner < 2) inner = 2;
-  rfill(bx + 4, by + 4, inner, bh - 8, 2, fg);
+  rcard(bx, by, bw, bh, 4, 3, fg, BLACK);
+  rfill(bx + bw, by + bh / 4, nw, bh - 2 * (bh / 4), 1, fg);
+  inner = (bw - 10) * pct / 100; if (inner < 2) inner = 2;
+  rfill(bx + 5, by + 5, inner, bh - 10, 2, fg);
   if (IsCharging()) {                          /* llamp: dos triangles oposats, del color que contrasti amb el farciment */
     int cx = bx + bw / 2, cy = by + bh / 2, hh = bh / 2 - 3, k2, col = inner > bw / 2 ? BLACK : fg;
     for (k2 = 0; k2 < hh; k2++) {
@@ -76,7 +76,7 @@ static void si_wifi_d(int x, int y, int w, int h, int fg) {
   SetFont(fSmall, lv ? fg : off ? DGRAY : LGRAY);
   DrawTextRect(x + iw + U / 4, y, StringWidth("WIFI") + 2, h, "WIFI", ALIGN_LEFT | VALIGN_MIDDLE);
 }
-static int si_net_w(int h) { (void)h; return netAct ? ICH * 12 / 10 : 0; }
+static int si_net_w(int h) { (void)h; return netAct ? ICH * 9 / 10 : 0; }
 static void si_net_d(int x, int y, int w, int h, int fg) { ic_spinner(x + w / 2, y + h / 2, w / 2, fg, LGRAY, DGRAY); }
 static int status_modules(const StatusItem **out, int max);
 static void statusbar(int withHits) {
