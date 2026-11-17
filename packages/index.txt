@@ -8,7 +8,7 @@ conversor|Conversor|5|18060|8b44ea0c|Longitud, pes, volum, temperatura i divises
 agenda|Agenda|4|22032|162d7a78|Calendari amb esdeveniments per dia.
 sudoku|Sudoku|4|17852|96fc7434|Partides amb solució única que es desen soles.
 buscamines|Buscamines|4|13728|ba99d00e|El clàssic, en un taulell de 9 per 9.
-temps|El temps|5|26176|a91ffd0a|Previsió de set dies per a Barcelona i altres ciutats que triïs (cal Wi-Fi).
+temps|El temps|6|59004|3c287b52|Temps actual, per hores i de 10 dies, amb detalls (UV, vent, sol…) per a les teves ciutats (cal Wi-Fi).
 noticies|Notícies|5|22064|2eb61fc8|Titulars de canals RSS, desats per llegir sense connexió.
 lector|Lector|4|50856|818f6c35|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
 xat|Xat|2|26208|8e9bf161|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
