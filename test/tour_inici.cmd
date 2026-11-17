@@ -24,4 +24,4 @@ shot i4.txt
 xy 1010 149
 shot i5.txt
 xy 600 40
-xy 990 596
+xy 972 698

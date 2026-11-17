@@ -11,6 +11,11 @@ for name in sys.argv[1:]:
         k,x,y,w,h,color,size,bold,flags,text=ln.rstrip('\n').split('\t',9); x,y,w,h,color,size,bold,flags=map(int,(x,y,w,h,color,size,bold,flags))
         g=(((color>>16)&255)*299+((color>>8)&255)*587+(color&255)*114)//1000
         if k=='B': im.paste(Image.frombytes('L',(w,h),bytes.fromhex(text)),(x,y)); continue
+        if k=='K':                       # escaquer: negre on (x+y) és senar
+            if w>0 and h>0:
+                m=Image.frombytes('L',(w,h),bytes(255 if (x+i+y+j)%2 else 0 for j in range(h) for i in range(w)))
+                im.paste(0,(x,y),m)
+            continue
         if k=='I':
             if w>0 and h>0: box=(max(0,x),max(0,y),min(1072,x+w),min(1448,y+h)); im.paste(ImageOps.invert(im.crop(box)),box[:2])
             continue

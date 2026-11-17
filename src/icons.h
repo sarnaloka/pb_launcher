@@ -71,4 +71,20 @@
 #define IC_WX_SUNSET   "M3 18h18M7 18a5 5 0 0 1 10 0M12 4v6M9.5 7.5L12 10l2.5-2.5M4.5 12.5l1.5 1M19.5 12.5l-1.5 1"
 #define IC_WX_LIST     "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"
 
+
+/* barra d'estat i tauler ràpid (estil Kobo / Kindle, dibuixats per a la 2.3) */
+#define IC_SB_SUN      "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"
+#define IC_WIFI_A3     "M3.5 10.5a12 12 0 0 1 17 0"
+#define IC_WIFI_A2     "M6.3 13.3a8 8 0 0 1 11.4 0"
+#define IC_WIFI_A1     "M9.2 16.2a4 4 0 0 1 5.6 0M12 19.5h.01"
+#define IC_WIFI        IC_WIFI_A3 IC_WIFI_A2 IC_WIFI_A1
+#define IC_WIFI_X      "M2 2.5l4 4M6 2.5l-4 4"
+#define IC_BATT_H      "M4 8h14a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 4 8zM22 11v2"
+#define IC_BOLT        "M12 9.5l-2.5 2.5h4L11 14.5"
+#define IC_SYNC        "M19.5 10a7.7 7.7 0 0 0-14-2.5M4.5 14a7.7 7.7 0 0 0 14 2.5M5.5 3.5v4h4M18.5 20.5v-4h-4"
+#define IC_SEARCH      "M10.5 4.5a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM15 15l5 5"
+#define IC_DOT         "M18 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"
+#define IC_CONTRAST_F  "M12 4a8 8 0 0 1 0 16z"
+#define IC_DISC15      "M12-3a15 15 0 1 0 0 30a15 15 0 1 0 0-30z"   /* cercle de fons de 30 (amb marge 3) */
+#define IC_CLEAN       "M5 5h14v14H5zM9 15l6-6M12 16l4-4M8 12l4-4"
 #endif

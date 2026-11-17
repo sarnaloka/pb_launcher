@@ -40,125 +40,105 @@ static UNUSED void icon_exit(int cx, int cy, int r, int col) {
    Els bits distingeixen baixada i pujada per si més endavant cal diferenciar-les. */
 enum { NETA_DOWN = 1, NETA_UP = 2 };
 static int netAct;
-static int sb_on_desk(void);
 static void si_time_txt(char *t, int sz) {
-  static const char *WD[7] = { "diumenge", "dilluns", "dimarts", "dimecres", "dijous", "divendres", "dissabte" };
   time_t now = time(NULL); struct tm *tm = localtime(&now);
-  if (sb_on_desk()) snprintf(t, (size_t)sz, "%s %d", WD[tm->tm_wday], tm->tm_mday); else snprintf(t, (size_t)sz, "%d:%02d", tm->tm_hour, tm->tm_min);
+  snprintf(t, (size_t)sz, "%d:%02d", tm->tm_hour, tm->tm_min);
 }
-static int si_time_w(int h) { char t[40]; (void)h; si_time_txt(t, sizeof(t)); SetFont(fBold, PAL(P_FG)); return StringWidth(t) + U / 2; }
+/* Barra d'estat estil Kobo (2.3): l'hora a l'esquerra i, a la dreta, només icones del prototip a una mateixa mida
+   (SBI, el 24 del viewBox) i amb traç d'1,5: avisos (només si n'hi ha), llum, Wi-Fi, bateria, sincronització i cerca. */
+#define SBI (SB * 52 / 100)
+#define SBGAP (SBI * 20 / 24)
+#define SBSW 1.5
+static int si_time_w(int h) { char t[40]; (void)h; si_time_txt(t, sizeof(t)); SetFont(fText, PAL(P_FG)); return StringWidth(t) + U / 2; }
 static void si_time_d(int x, int y, int w, int h, int fg) {
   char t[40]; si_time_txt(t, sizeof(t));
-  SetFont(fBold, fg); DrawTextRect(x, y, w, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
+  SetFont(fText, fg); DrawTextRect(x, y, w, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
 }
 static int batt_pct(void) { int p = GetBatteryPower(); return p < 0 ? 0 : p > 100 ? 100 : p; }
-static int si_batt_w(int h) { char t[16]; (void)h; snprintf(t, sizeof(t), "%d%%", batt_pct()); SetFont(fSmall, PAL(P_FG)); return StringWidth(t) + U / 4 + ICH * 3 / 2 + 5; }
-static void si_batt_d(int x, int y, int w, int h, int fg) {
-  char t[16]; int pct = batt_pct(), bh = ICH * 3 / 4, bw = bh * 2, nw = 3, by = y + (h - bh) / 2, tw, bx, inner;
-  (void)w;
-  snprintf(t, sizeof(t), "%d%%", pct);
-  SetFont(fSmall, fg); tw = StringWidth(t);
-  DrawTextRect(x, y, tw, h, t, ALIGN_RIGHT | VALIGN_MIDDLE);
-  bx = x + tw + U / 4;
-  rcard(bx, by, bw, bh, 5, 3, fg, PAL(P_BG));
-  rfill(bx + bw, by + bh / 4, nw, bh - 2 * (bh / 4), 1, fg);
-  inner = (bw - 10) * pct / 100; if (inner < 2) inner = 2;
-  rfill(bx + 5, by + 5, inner, bh - 10, 2, fg);
-  if (IsCharging()) {                          /* llamp: dos triangles oposats, del color que contrasti amb el farciment */
-    int cx = bx + bw / 2, cy = by + bh / 2, hh = bh / 2 - 3, k2, col = inner > bw / 2 ? PAL(P_BG) : fg;
-    for (k2 = 0; k2 < hh; k2++) {
-      int wv = (hh - k2) * 2 / 3 + 1;
-      FillArea(cx - wv + 2, cy - k2 - 1, wv + 2, 1, col);
-      FillArea(cx - 2, cy + k2, wv + 2, 1, col);
-    }
-  }
+/* Bateria horitzontal: carregant, el llamp; si no, el farciment (13 unitats de llarg com a màxim) segons la càrrega. */
+static void batt_icon(int x, int y, int s, int fg, int bg) {
+  char fl[80]; IcLayer L[2] = { { IC_BATT_H, fg, 0 }, { NULL, fg, 1 } };
+  if (IsCharging()) { L[1].d = IC_BOLT; L[1].fill = 0; }
+  else { double w = 13.0 * batt_pct() / 100; if (w < 1) w = 1; snprintf(fl, sizeof(fl), "M4.5 10h%.2fv4h-%.2fz", w, w); L[1].d = fl; }
+  ic_layers(L, 2, x, y, s, SBSW, bg);
 }
-/* Wi-Fi: barres de senyal. Connectat: barres segons el senyal. Encès sense connexió o apagat: barres apagades i una petita «x». */
-static int wifi_level(void) {                  /* 0 = sense connexió; 1..4 = barres */
+static int si_batt_w(int h) { (void)h; return SBI; }
+static void si_batt_d(int x, int y, int w, int h, int fg) { (void)w; batt_icon(x, y + (h - SBI) / 2, SBI, fg, PAL(P_BG)); }
+static int wifi_level(void) {                  /* 0 = sense connexió; 1..4 = força del senyal */
   int q, bars;
   if (!(QueryNetwork() & NET_WIFIREADY)) return 0;
   q = GetNetSignalQuality(); bars = q < 0 ? 4 : (q * 4 + 4) / 5;
   return bars < 1 ? 1 : bars > 4 ? 4 : bars;
 }
-static int si_wifi_w(int h) { (void)h; return ic_signal_w(ICH); }
-static void si_wifi_d(int x, int y, int w, int h, int fg) {
-  int lv = wifi_level();
-  (void)w;
-  ic_signal(x + ic_signal_w(ICH) / 2, y + h / 2, ICH, lv, fg, PAL(P_SHADOW), lv ? -1 : fg);
+/* Wi-Fi: tres arcs; els que falten, atenuats. Sense connexió, tots atenuats i una «x» petita a dalt a l'esquerra. */
+static void wifi_icon(int x, int y, int s, int lv, int fg, int bg) {
+  int dim = ic_mix(fg, bg, 25), arcs = lv <= 0 ? 0 : lv <= 2 ? 1 : lv == 3 ? 2 : 3;
+  IcLayer L[4] = { { IC_WIFI_A3, arcs >= 3 ? fg : dim, 0 }, { IC_WIFI_A2, arcs >= 2 ? fg : dim, 0 }, { IC_WIFI_A1, arcs >= 1 ? fg : dim, 0 }, { lv ? NULL : IC_WIFI_X, fg, 0 } };
+  ic_layers(L, 4, x, y, s, SBSW, bg);
 }
-/* Avisos: campana i comptador de no llegits; no es mostra si no n'hi ha. */
+static int si_wifi_w(int h) { (void)h; return SBI; }
+static void si_wifi_d(int x, int y, int w, int h, int fg) { (void)w; wifi_icon(x, y + (h - SBI) / 2, SBI, wifi_level(), fg, PAL(P_BG)); }
+static int si_sun_w(int h) { (void)h; return SBI; }
+static void si_sun_d(int x, int y, int w, int h, int fg) { (void)w; ic_path(IC_SB_SUN, x, y + (h - SBI) / 2, SBI, SBSW, fg, PAL(P_BG)); }
+static int si_find_w(int h) { (void)h; return SBI; }
+static void si_find_d(int x, int y, int w, int h, int fg) { (void)w; ic_path(IC_SEARCH, x, y + (h - SBI) / 2, SBI, SBSW, fg, PAL(P_BG)); }
+/* Avisos: campana amb el punt ple; no es mostra si no n'hi ha de nous. */
 static int avisos_unread(void);
-static int si_av_w(int h) { char t[16]; int n = avisos_unread(); (void)h; if (n <= 0) return 0; snprintf(t, sizeof(t), "%d", n > 99 ? 99 : n); SetFont(fSmall, PAL(P_FG)); return ICH + U / 4 + StringWidth(t); }
+static int si_av_w(int h) { (void)h; return avisos_unread() > 0 ? SBI : 0; }
 static void si_av_d(int x, int y, int w, int h, int fg) {
-  char t[16]; int n = avisos_unread();
-  (void)w; snprintf(t, sizeof(t), "%d", n > 99 ? 99 : n);
-  ic_path(IC_BELL, x - ICH / 8, y + (h - ICH * 5 / 4) / 2, ICH * 5 / 4, 2.2, fg, PAL(P_BG));
-  SetFont(fSmall, fg); DrawTextRect(x + ICH + U / 4, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
+  IcLayer L[2] = { { IC_BELL, fg, 0 }, { IC_DOT, fg, 1 } };
+  (void)w; ic_layers(L, 2, x, y + (h - SBI) / 2, SBI, SBSW, PAL(P_BG));
 }
 static int jobs_progress(void);
-/* Xarxa: amb feines a la cua, fletxa i barra de progrés; amb una descàrrega síncrona, el cercle. */
-/* Apps obertes: icona i nombre; en tocar-la, la llista. */
-static int open_count(void);
-static int si_open_w(int h) { char t[8]; int n = open_count(); (void)h; if (!n) return 0; snprintf(t, sizeof(t), "%d", n); SetFont(fSmall, PAL(P_FG)); return ICH + U / 6 + StringWidth(t); }
-static void si_open_d(int x, int y, int w, int h, int fg) {
-  char t[8]; (void)w; snprintf(t, sizeof(t), "%d", open_count());
-  ic_path(IC_APPS, x, y + (h - ICH) / 2, ICH, 2.2, fg, PAL(P_BG));
-  SetFont(fSmall, fg); DrawTextRect(x + ICH + U / 6, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
-}
-static int si_net_w(int h) { (void)h; if (jobs_progress() >= 0) return ICH * 3; return netAct ? ICH * 9 / 10 : 0; }
-static void si_net_d(int x, int y, int w, int h, int fg) {
-  int p = jobs_progress();
-  if (p >= 0) {
-    int bw = ICH * 2 - U / 4, bh = ICH / 3 > 6 ? ICH / 3 : 6, bx = x + ICH + U / 4, by = y + (h - bh) / 2;
-    ic_path(IC_DOWNLOAD, x, y + (h - ICH) / 2, ICH, 2.4, fg, PAL(P_BG));
-    rfill(bx, by, bw, bh, bh / 2, PAL(P_SHADOW));
-    if (p <= 100 && p * bw / 100 > bh) rfill(bx, by, p * bw / 100, bh, bh / 2, fg);
-    return;
-  }
-  ic_spinner(x + w / 2, y + h / 2, w / 2, fg, PAL(P_SUB), PAL(P_SHADOW));
+/* Sincronització: en repòs, la icona; amb descàrregues en marxa, dins un cercle ple (sense animació). */
+static int sync_busy(void) { return netAct || jobs_progress() >= 0; }
+static int si_sync_w(int h) { (void)h; return sync_busy() ? SBI * 30 / 24 : SBI; }
+static void si_sync_d(int x, int y, int w, int h, int fg) {
+  if (sync_busy()) { int d = SBI * 30 / 24; IcLayer L[2] = { { IC_DISC15, fg, 1 }, { IC_SYNC, PAL(P_BG), 0 } }; (void)w; ic_layers_m(L, 2, x, y + (h - d) / 2, d, SBSW, PAL(P_BG), 3); return; }
+  (void)w; ic_path(IC_SYNC, x, y + (h - SBI) / 2, SBI, SBSW, fg, PAL(P_BG));
 }
 static int status_modules(const StatusItem **out, int max);
-#define NSYS 6
-/* Geometria i estat de cada peça de la barra: permet repintar i actualitzar només la peça que canvia. */
+#define NSYS 7
+/* Geometria i estat de cada peça de la barra: permet repintar i actualitzar només la peça que canvia.
+   Ordre de dreta a esquerra a partir de l'1: cerca, sincronització, bateria, Wi-Fi, llum, avisos; després, els paquets. */
 static int sbX[40], sbW[40], sbN, sbSig[NSYS], sbR0;
 static int sb_sig(int i) {
   int n;
   switch (i) {
-    case 0: return sb_on_desk() ? (int)(time(NULL) / 86400 % 1000000) : (int)(time(NULL) / 60 % 1000000);
-    case 1: return batt_pct() * 2 + (IsCharging() ? 1 : 0);
-    case 2: n = QueryNetwork(); return wifi_level() * 4 + ((n & NET_WIFI) ? 1 : 0) + ((n & NET_WIFIREADY) ? 2 : 0);
-    case 3: { int p = jobs_progress(); return netAct * 1000 + (p < 0 ? 999 : p / 10); }
-    case 4: return avisos_unread();
-    default: return open_count();
+    case 0: return (int)(time(NULL) / 60 % 1000000);
+    case 2: { int p = jobs_progress(); return netAct * 1000 + (p < 0 ? 999 : 0); }
+    case 3: return batt_pct() * 2 + (IsCharging() ? 1 : 0);
+    case 4: n = QueryNetwork(); return wifi_level() * 4 + ((n & NET_WIFI) ? 1 : 0) + ((n & NET_WIFIREADY) ? 2 : 0);
+    case 6: return avisos_unread() > 0;
+    default: return 0;
   }
 }
+static int quick_open(void);
 static void statusbar(int withHits) {
-  static const StatusItem SYS[NSYS] = { { "hora", si_time_w, si_time_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "xarxa", si_net_w, si_net_d }, { "avisos", si_av_w, si_av_d }, { "obertes", si_open_w, si_open_d } };
-  const StatusItem *list[40]; int n = 0, i, x = SW - U / 2, gap = U * 7 / 10, tw;
+  static const StatusItem SYS[NSYS] = { { "hora", si_time_w, si_time_d }, { "cerca", si_find_w, si_find_d }, { "sincronitza", si_sync_w, si_sync_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "llum", si_sun_w, si_sun_d }, { "avisos", si_av_w, si_av_d } };
+  const StatusItem *list[40]; int n = 0, i, x = SW - U * 3 / 4, tw;
   for (i = 0; i < NSYS; i++) list[n++] = &SYS[i];
   n += status_modules(list + n, 40 - n);
   for (i = 0; i < 40; i++) { sbX[i] = 0; sbW[i] = 0; }
   for (i = 0; i < NSYS; i++) sbSig[i] = sb_sig(i);
   FillArea(0, 0, SW, SB, PAL(P_BG));
-  /* la barra només mostra estat: hora a l'esquerra, indicadors a la dreta. Tota la barra obre el tauler ràpid. */
-  tw = si_time_w(SB); sbX[0] = U / 2; sbW[0] = tw; si_time_d(U / 2, 0, tw, SB, PAL(P_FG));
-  sbN = n; sbR0 = U / 2 + tw + U;
+  /* la barra només mostra estat; tota la barra obre el tauler ràpid */
+  tw = si_time_w(SB); sbX[0] = U * 3 / 4; sbW[0] = tw; si_time_d(U * 3 / 4, 0, tw, SB, PAL(P_FG));
+  sbN = n; sbR0 = U * 3 / 4 + tw + U;
   if (withHits) add_hit(0, 0, SW, SB, A_QUICK, 0);
   for (i = 1; i < n; i++) {
     int w = list[i]->width(SB);
     if (w <= 0) continue;
     if (x - w < sbR0) break;
     x -= w; sbX[i] = x; sbW[i] = w; list[i]->draw(x, 0, w, SB, PAL(P_FG));
-    if (i == 4 && withHits) add_hit(x - gap / 2, 0, w + gap, SB, A_AVISOS, 0);
-    if (i == 5 && withHits) add_hit(x - gap / 2, 0, w + gap, SB, A_CFG_GO, V_OPEN);
-    x -= gap;
+    x -= SBGAP;
   }
 }
 /* Repinta la barra a la memòria i actualitza la pantalla només a les peces que han canviat (cap refresc si no ha canviat res).
    Si una peça canvia d'amplada i la resta es desplaça, s'actualitza tota la zona dreta. */
 static void pane_leave(void); static void pane_enter(int p);
 static void sb_refresh_(void);
-static void sb_refresh(void) { int inp = inPane; if (inp >= 0) pane_leave(); sb_refresh_(); if (inp >= 0) pane_enter(inp); }
+static void sb_refresh(void) { int inp = inPane; if (quick_open()) return; if (inp >= 0) pane_leave(); sb_refresh_(); if (inp >= 0) pane_enter(inp); }
 static void sb_refresh_(void) {
   int oSig[NSYS], oX[40], oW[40], oN = sbN, i, lay = 0, x0 = SW, x1 = 0, ch = 0;
   memcpy(oSig, sbSig, sizeof(oSig)); memcpy(oX, sbX, sizeof(oX)); memcpy(oW, sbW, sizeof(oW));

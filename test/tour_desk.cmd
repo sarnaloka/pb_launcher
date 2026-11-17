@@ -45,4 +45,4 @@ tap Cerca una parada
 tap Museu - El Viver
 shot d8.txt
 xy 600 40
-tap Surt de l'Escriptori
+xy 1000 70

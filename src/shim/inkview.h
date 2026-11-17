@@ -57,7 +57,7 @@ void InkViewMain(iv_handler h); void CloseApp(void); int ScreenWidth(void); int 
 void ClearScreen(void); void DrawLine(int, int, int, int, int); void DrawRect(int, int, int, int, int); void FillArea(int, int, int, int, int);
 typedef struct ibitmap_s { unsigned short width, height, depth, scanline; unsigned char data[]; } ibitmap;
 ibitmap *BitmapFromScreen(int x, int y, int w, int h); void SetClip(int x, int y, int w, int h);
-void DrawBitmap(int x, int y, const ibitmap *b); void DrawPixel(int x, int y, int c); void InvertArea(int x, int y, int w, int h);
+void SimChecker(int x, int y, int w, int h); void DrawBitmap(int x, int y, const ibitmap *b); void DrawPixel(int x, int y, int c); void InvertArea(int x, int y, int w, int h);
 char **EnumFonts(void); void CloseFont(ifont *f);
 ibitmap *LoadJPEG(const char *path, int w, int h, int br, int co, int proportional); ibitmap *LoadPNGStretch(const char *path, int w, int h, int proportional, int dither);
 void DitherArea(int x, int y, int w, int h, int levels, int method);

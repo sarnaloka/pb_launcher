@@ -14,7 +14,7 @@
 enum { V_DESK, V_STORE, V_PKG, V_SYSTEM, V_QUICK, V_HOME, V_AVISOS, V_UPDATE, V_ABOUT, V_FAVS, V_LOOK, V_FONTS, V_JOBS, V_OPEN, V_SPLIT, V_SPLITPICK, V_MON };   /* V_SYSTEM = Configuració */
 enum { A_NONE, A_BACK, A_HOME, A_PREV, A_NEXT, A_EXIT, A_APP, A_STORE_REFRESH, A_STORE_ALL, A_PKG, A_PKG_INSTALL, A_PKG_REMOVE,
        A_UPD_CHECK, A_UPD_INSTALL, A_WIFI,
-       A_QUICK, A_WIDGET, A_QWIFI, A_QLIGHT_DN, A_QLIGHT_UP, A_QCLEAN, A_QGO, A_HE_TOGGLE, A_HE_UP, A_HE_DN, A_AVISOS, A_AV_ONE, A_AV_READ, A_AV_CLEAR,
+       A_QUICK, A_WIDGET, A_QDARK, A_QLIGHT_SET, A_QWIFI, A_QLIGHT_DN, A_QLIGHT_UP, A_QCLEAN, A_QGO, A_HE_TOGGLE, A_HE_UP, A_HE_DN, A_AVISOS, A_AV_ONE, A_AV_READ, A_AV_CLEAR,
        A_CFG_GO, A_CFG_FULL, A_FAV_TOGGLE, A_STORE_FILTER, A_ABOUT_UPD,
        A_LOOK_THEME, A_LOOK_SIZE, A_LOOK_BG, A_LOOK_CON, A_FONT_PICK, A_DESK_PREV, A_DESK_NEXT,
        A_JOB_CANCEL, A_SYNC_TOGGLE, A_SYNC_CHARGE, A_SYNC_NOW, A_OPEN, A_OPEN_CLOSE, A_OPEN_ALL, A_OPEN_SPLIT,
@@ -206,7 +206,7 @@ static void desk_text(int x, int y, int w, int h, const char *t, ifont *f, int c
   DrawTextRect(x, y, w, h, t, align | VALIGN_MIDDLE | DOTS);
 }
 static void seg(int x, int y, int w, int h, const char **lab, int n, int cur, int act);
-static int sb_on_desk(void) { return depth >= 1 && stack[depth - 1].mod < 0 && stack[depth - 1].type == V_DESK; }
+static int quick_open(void) { return depth >= 2 && stack[depth - 1].mod < 0 && stack[depth - 1].type == V_QUICK; }
 /* Actualització parcial (també per als paquets): amb el tema fosc s'inverteix abans la zona redibuixada. */
 static void upd_region(int x, int y, int w, int h) { if (escDark) InvertArea(x, y, w, h); PartialUpdate(x, y + escOY, w, h); }
 #include "jobs.h"
@@ -287,7 +287,6 @@ static void mods_scan(void) {
 typedef struct { char id[48]; View v[12]; int n; long t; ibitmap *thumb; } OpenApp;
 static OpenApp opened[MAXOPEN]; static int nOpen;
 static ibitmap *pendThumb; static char pendThumbId[48];
-static int open_count(void) { return nOpen; }
 static int open_find(const char *id) { int i; for (i = 0; i < nOpen; i++) if (!strcmp(opened[i].id, id)) return i; return -1; }
 static void open_drop(int k) { if (k < 0 || k >= nOpen) return; free(opened[k].thumb); memmove(&opened[k], &opened[k + 1], sizeof(OpenApp) * (size_t)(nOpen - k - 1)); nOpen--; }
 static void open_forget(int m) { int k; if (m < 0 || m >= nmods) return; while ((k = open_find(mods[m].id)) >= 0) open_drop(k); if (!strcmp(pendThumbId, mods[m].id)) { free(pendThumb); pendThumb = NULL; pendThumbId[0] = 0; } }
@@ -971,52 +970,109 @@ static void v_avisos(View *v) {
 
 /* ───────────── tauler ràpid ───────────── */
 static int light_get(void) { int v = GetFrontlightState(); return v == INT_MIN ? -1 : v; }
+/* El tauler baixa des de dalt (estil Kindle) i tapa la barra d'estat; la resta de la pantalla queda enfosquida amb un
+   escaquer d'un píxel. Les mides surten del prototip (pantalla de 1072 d'amplada) i s'escalen amb SW. */
+#define QK(v) ((v) * SW / 1072)
+static int quickH;                             /* alçada del tauler (per a l'escaquer) */
+static void quick_btn(int cx, int cy, const char *label, const IcLayer *L, int nl, int on, int badge, int act, int arg) {
+  int r = QK(62), s = QK(60), fg = on ? PAL(P_CARD) : PAL(P_FG), bg = on ? PAL(P_FG) : PAL(P_CARD), i; IcLayer M[3];
+  rcard(cx - r, cy - r, 2 * r, 2 * r, r, on ? 0 : QK(3), PAL(P_FG), PAL(P_CARD));
+  for (i = 0; i < nl && i < 3; i++) { M[i] = L[i]; M[i].col = fg; }
+  ic_layers(M, nl, cx - s / 2, cy - s / 2, s, 1.5, bg);
+  if (badge > 0) {
+    char t[8]; int br = QK(22), bx = cx + QK(44), by = cy - QK(44);
+    snprintf(t, sizeof(t), "%d", badge > 99 ? 99 : badge);
+    rfill(bx - br, by - br, 2 * br, 2 * br, br, PAL(P_FG));
+    SetFont(fSmall, PAL(P_CARD)); DrawTextRect(bx - br, by - br, 2 * br, 2 * br, t, ALIGN_CENTER | VALIGN_MIDDLE);
+  }
+  SetFont(fSmall, PAL(P_FG)); DrawTextRect(cx - QK(134), cy + r + QK(8), QK(268), QK(48), label, ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
+  add_hit(cx - QK(134), cy - r - QK(10), QK(268), 2 * r + QK(70), act, arg);
+}
 static void v_quick(View *v) {
-  int gap = U / 2, tw = (SW - U - gap) / 2, th = 5 * U + U / 2, x0 = U / 2, x1 = U / 2 + tw + gap, y = TOP, net = QueryNetwork(), lv = light_get(), bs = 2 * U + U / 4, is = U * 3 / 2, bh = 2 * U + U / 2, nu = avisos_unread(), i;
-  char t[100], st[60]; int solid, lh = 5 * U + U / 4;
+  static const char *WD[7] = { "diumenge", "dilluns", "dimarts", "dimecres", "dijous", "divendres", "dissabte" };
+  static const char *MO[12] = { "de gener", "de febrer", "de març", "d'abril", "de maig", "de juny", "de juliol", "d'agost", "de setembre", "d'octubre", "de novembre", "de desembre" };
+  int net = QueryNetwork(), lv = light_get(), nu = avisos_unread(), cx[4], i, ph = QK(820), fg = PAL(P_FG), card = PAL(P_CARD), nj = jobs_count(J_QUEUED) + jobs_count(J_RUNNING);
+  char t[120]; time_t now = time(NULL); struct tm *tm = localtime(&now);
   (void)v;
-  snprintf(t, sizeof(t), "Bateria %d%%%s", GetBatteryPower(), IsCharging() ? " · carregant" : "");
-  header("Tauler ràpid", t);
-  /* fila 1: Wi-Fi i avisos */
-  solid = (net & NET_WIFIREADY) != 0;
-  snprintf(st, sizeof(st), "%s", solid ? "Connectat · toca per desconnectar" : (net & NET_WIFI) ? "Encès · toca per connectar" : "Apagat · toca per connectar");
-  ui_tile(x0, y, tw, th, "Wi-Fi", st, solid, A_QWIFI, 0);
-  ic_signal(x0 + U + U / 2, y + U + U / 2, U * 3 / 2, wifi_level(), solid ? PAL(P_ACCFG) : PAL(P_FG), solid ? PAL(P_SUB) : PAL(P_SHADOW), solid ? -1 : PAL(P_FG));
-  if (nu) snprintf(st, sizeof(st), nu == 1 ? "%d de nou" : "%d de nous", nu); else snprintf(st, sizeof(st), "Res de nou");
-  ui_tile(x1, y, tw, th, "Avisos", st, 0, A_AVISOS, 0);
-  ic_path(IC_BELL, x1 + U * 3 / 4, y + U * 3 / 4, is, 1.8, PAL(P_FG), PAL(P_CARD));
-  /* llum: barra de 10 nivells entre els botons de menys i més */
-  y += th + gap;
-  ui_card(x0, y, SW - U, lh, UI_LINE);
-  ic_path(IC_SUN, x0 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
-  SetFont(fBold, PAL(P_FG)); DrawTextRect(x0 + 3 * U, y + U / 4, 8 * U, 2 * U, "Llum", ALIGN_LEFT | VALIGN_MIDDLE);
+  quickH = ph;
+  for (i = 0; i < 4; i++) cx[i] = SW * (2 * i + 1) / 8;
+  add_hit(0, 0, SW, SH, A_BACK, 0);                          /* fora del tauler: es tanca */
+  add_hit(0, 0, SW, ph, A_NONE, 0);
+  rcard(0, -QK(40), SW, ph + QK(40), QK(30), QK(3), fg, card);
+  /* capçalera: hora i data; a la dreta, bateria i sortir */
+  snprintf(t, sizeof(t), "%d:%02d · %s, %d %s", tm->tm_hour, tm->tm_min, WD[tm->tm_wday], tm->tm_mday, MO[tm->tm_mon]);
+  SetFont(fText, fg); DrawTextRect(QK(56), QK(40), SW - QK(400), QK(64), t, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  snprintf(t, sizeof(t), "%d%%", batt_pct());
+  DrawTextRect(QK(880) - QK(240), QK(40), QK(240), QK(64), t, ALIGN_RIGHT | VALIGN_MIDDLE);
+  batt_icon(QK(892), QK(48), QK(48), fg, card);
+  ic_path(IC_POWER, QK(976), QK(50), QK(44), 1.5, fg, card);
+  add_hit(QK(950), 0, SW - QK(950), QK(130), A_EXIT, 0);
+  /* botons rodons: dues files de quatre */
+  { IcLayer L[3] = { { IC_WIFI, 0, 0 } };
+    quick_btn(cx[0], QK(215), "Wi-Fi", L, 1, (net & NET_WIFIREADY) != 0, 0, A_QWIFI, 0); }
+  { IcLayer L[3] = { { IC_CONTRAST, 0, 0 }, { IC_CONTRAST_F, 0, 1 } };
+    quick_btn(cx[1], QK(215), "Mode fosc", L, 2, cfgTheme == 1, 0, A_QDARK, 0); }
+  { IcLayer L[3] = { { IC_SYNC, 0, 0 } };
+    quick_btn(cx[2], QK(215), "Sincronitza", L, 1, nj > 0, 0, A_SYNC_NOW, 0); }
+  { IcLayer L[3] = { { IC_SLIDERS, 0, 0 } };
+    quick_btn(cx[3], QK(215), "Configuració", L, 1, 0, 0, A_QGO, 0); }
+  { IcLayer L[3] = { { IC_BELL, 0, 0 } };
+    quick_btn(cx[0], QK(430), "Avisos", L, 1, 0, nu, A_QGO, 3); }
+  { IcLayer L[3] = { { IC_APPS, 0, 0 } };
+    quick_btn(cx[1], QK(430), "Apps obertes", L, 1, 0, nOpen, A_QGO, 4); }
+  { IcLayer L[3] = { { IC_PULSE, 0, 0 } };
+    quick_btn(cx[2], QK(430), "Monitor", L, 1, 0, 0, A_QGO, 5); }
+  { IcLayer L[3] = { { IC_CLEAN, 0, 0 } };
+    quick_btn(cx[3], QK(430), "Neteja", L, 1, 0, 0, A_QCLEAN, 0); }
+  FillArea(QK(56), QK(580), SW - 2 * QK(56), QK(2) > 1 ? QK(2) : 1, PAL(P_LINE));
+  /* llum: lliscador amb el valor a sobre del botó; − i + als extrems */
+  SetFont(fSmall, fg); DrawTextRect(QK(56), QK(600), QK(400), QK(52), "Llum", ALIGN_LEFT | VALIGN_MIDDLE);
   if (lv >= 0) {
-    int by = y + 2 * U + U / 2, sx = x0 + U / 2 + bs + U / 2, sw = SW - U - 2 * (U / 2 + bs + U / 2), g = U / 5, w1 = (sw - 9 * g) / 10, sh = U + U / 4, on = (lv + 5) / 10;
-    snprintf(st, sizeof(st), "%d%%", lv);
-    SetFont(fBold, PAL(P_FG)); DrawTextRect(SW - U - 6 * U, y + U / 4, 5 * U, 2 * U, st, ALIGN_RIGHT | VALIGN_MIDDLE);
-    round_icon(x0 + U / 2, by, bs, 0, IC_MINUS);
-    round_icon(SW - U - bs, by, bs, 0, IC_PLUS);
-    for (i = 0; i < 10; i++) rfill(sx + i * (w1 + g), by + (bs - sh) / 2, w1, sh, U / 4, i < on ? PAL(P_ACC) : PAL(P_TILE));
-    add_hit(x0, by - U / 4, U / 2 + bs + U / 2, bs + U / 2, A_QLIGHT_DN, 0);
-    add_hit(SW - U - bs - U / 2, by - U / 4, bs + U, bs + U / 2, A_QLIGHT_UP, 0);
-  } else { SetFont(fText, PAL(P_SUB)); DrawTextRect(x0 + U, y + 2 * U + U / 2, SW - 3 * U, 2 * U, "Aquest lector no informa de la llum frontal.", ALIGN_LEFT | VALIGN_MIDDLE | DOTS); }
-  /* fila 3: neteja de pantalla i aparença; fila 4: configuració */
-  y += lh + gap;
-  ui_tile(x0, y, tw, th - U, "Neteja la pantalla", "Refresc complet", 0, A_QCLEAN, 0);
-  ic_path(IC_REFRESH, x0 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
-  ui_tile(x1, y, tw, th - U, "Aparença", cfgTheme ? "Tema fosc" : "Tema clar", 0, A_CFG_GO, V_LOOK);
-  ic_path(IC_CONTRAST, x1 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
-  y += th - U + gap;
-  snprintf(st, sizeof(st), nOpen == 1 ? "%d oberta" : nOpen ? "%d obertes" : "Cap", nOpen);
-  ui_tile(x0, y, tw, th - U, "Apps obertes", st, 0, A_CFG_GO, V_OPEN);
-  ic_path(IC_APPS, x0 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
-  { int nj = jobs_count(J_QUEUED) + jobs_count(J_RUNNING); if (nj) snprintf(st, sizeof(st), nj == 1 ? "%d descàrrega" : "%d descàrregues", nj); else snprintf(st, sizeof(st), "Què hi ha en marxa"); }
-  ui_tile(x1, y, tw, th - U, "Monitor", st, 0, A_CFG_GO, V_MON);
-  ic_path(IC_PULSE, x1 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
-  y += th - U + gap;
-  ui_tile(x0, y, SW - U, th - U, "Configuració", "Tots els ajustos", 0, A_QGO, 0);
-  ic_path(IC_SLIDERS, x0 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
-  button(U / 2, SH - U / 2 - bh, SW - U, bh, "Surt de l'Escriptori", 0, A_EXIT, 0);
+    int x0 = QK(120), x1 = QK(920), ty = QK(698), kx = x0 + (x1 - x0) * lv / 100, th = QK(6) > 2 ? QK(6) : 2, kr = QK(26);
+    SetFont(fTitle, fg);
+    DrawTextRect(QK(30), ty - QK(40), QK(80), QK(80), "−", ALIGN_CENTER | VALIGN_MIDDLE);
+    DrawTextRect(QK(932), ty - QK(40), QK(80), QK(80), "+", ALIGN_CENTER | VALIGN_MIDDLE);
+    rfill(x0, ty - th / 2, x1 - x0, th, th / 2, PAL(P_SHADOW));
+    if (kx > x0) rfill(x0, ty - th / 2, kx - x0, th, th / 2, fg);
+    snprintf(t, sizeof(t), "%d", lv);
+    SetFont(fSmall, fg); DrawTextRect(kx - QK(60), ty - QK(76), QK(120), QK(40), t, ALIGN_CENTER | VALIGN_MIDDLE);
+    rcard(kx - kr, ty - kr, 2 * kr, 2 * kr, kr, QK(3), fg, card);
+    add_hit(0, ty - QK(50), QK(110), QK(100), A_QLIGHT_DN, 0);
+    add_hit(QK(930), ty - QK(50), SW - QK(930), QK(100), A_QLIGHT_UP, 0);
+    for (i = 0; i <= 10; i++) { int hx = x0 + (x1 - x0) * i / 10; add_hit(hx - (x1 - x0) / 20, ty - QK(50), (x1 - x0) / 10, QK(100), A_QLIGHT_SET, i * 10); }
+  } else { SetFont(fSmall, PAL(P_SUB)); DrawTextRect(QK(56), QK(660), SW - 2 * QK(56), QK(70), "Aquest lector no informa de la llum frontal.", ALIGN_LEFT | VALIGN_MIDDLE | DOTS); }
+  /* xebró per tancar */
+  { int t2 = QK(4) > 2 ? QK(4) : 2;
+    thick(QK(500), QK(785), QK(536), QK(763), t2, fg); thick(QK(536), QK(763), QK(572), QK(785), t2, fg);
+    add_hit(QK(400), QK(740), QK(272), ph - QK(740), A_BACK, 0); }
+}
+/* Escaquer d'un píxel (els píxels negres alternats): enfosqueix sense grisos. Al lector s'escriu directament al llenç. */
+static void checker(int x, int y, int w, int h) {
+  int px, py;
+  if (x < 0) { w += x; x = 0; }
+  if (y < 0) { h += y; y = 0; }
+  if (x + w > SW) w = SW - x;
+  if (y + h > SH) h = SH - y;
+  if (w <= 0 || h <= 0) return;
+#ifdef ESC_SIM
+  SimChecker(x, y, w, h); (void)px; (void)py;
+#else
+  { icanvas *c = GetCanvas();
+    if (c && c->addr && (c->depth == 8 || c->depth == 16 || c->depth == 24 || c->depth == 32) && x + w <= c->width && y + h <= c->height) {
+      int bpp = c->depth / 8;
+      for (py = y; py < y + h; py++) { unsigned char *row = c->addr + (size_t)py * c->scanline; for (px = x + ((x + py + 1) & 1); px < x + w; px += 2) memset(row + (size_t)px * bpp, 0, (size_t)bpp); }
+      return; }
+    for (py = y; py < y + h; py++) for (px = x + ((x + py + 1) & 1); px < x + w; px += 2) DrawPixel(px, py, BLACK); }
+#endif
+}
+/* Enfosqueix tot el que queda fora del tauler, cantonades arrodonides incloses. */
+static void quick_dim(void) {
+  int r = QK(30), k, ph = quickH;
+  for (k = 0; k < r; k++) {
+    double dy = k + 0.5; int inset = r - (int)(sqrt((double)r * r - dy * dy) + 0.5);
+    checker(0, ph - r + k, inset, 1); checker(SW - inset, ph - r + k, inset, 1);
+  }
+  checker(0, ph, SW, SH - ph);
 }
 static void v_store(View *v) {
   static const char *FL[3] = { "Tots", "Instal·lats", "Per actualitzar" };
@@ -1595,6 +1651,7 @@ static int tick_redraw(void) {
   if (v->mod >= 0) return v->mod < nmods && (mods[v->mod].m->flags & MOD_TICK);
   return v->type == V_DESK;
 }
+static void render_view(View *v);
 static void render(void) {
   View *v = &stack[depth - 1];
   int pass;
@@ -1604,6 +1661,21 @@ static void render(void) {
     int before = v->page;
     ClearScreen(); FillArea(0, 0, SW, SH, PAL(P_BG)); nhits = 0; pages = 1; footY = SH - NAVH - U / 4; wallOn = 0;
     statusbar(1);
+    if (v->mod < 0 && v->type == V_QUICK && depth >= 2) {   /* tauler ràpid: primer la pantalla de sota, sense tocs */
+      View *u = &stack[depth - 2];
+      depth--; render_view(u); if (u->page < 0) u->page = 0; if (!(u->mod < 0 && (u->type == V_DESK || u->type == V_SPLIT))) footer(u->page); depth++;
+      nhits = 0; v_quick(v);
+      break;
+    }
+    render_view(v);
+    if (v->page < 0) v->page = 0;
+    if (!(v->mod < 0 && (v->type == V_DESK || v->type == V_SPLIT))) footer(v->page);
+    if (v->page == before) break;
+  }
+  if (escDark) InvertArea(0, 0, SW, SH);
+  if (quick_open()) quick_dim();
+}
+static void render_view(View *v) {
     if (v->mod >= 0) mods[v->mod].m->fn_draw(v);
     else switch (v->type) {
       case V_DESK: v_desk(v); break;
@@ -1624,11 +1696,6 @@ static void render(void) {
       case V_HOME: v_home(v); break;
       case V_AVISOS: v_avisos(v); break;
     }
-    if (v->page < 0) v->page = 0;
-    if (!(v->mod < 0 && (v->type == V_DESK || v->type == V_SPLIT))) footer(v->page);
-    if (v->page == before) break;
-  }
-  if (escDark) InvertArea(0, 0, SW, SH);
 }
 static void draw(int full) {
   static int nfull; int inp = inPane;
@@ -1803,7 +1870,10 @@ static void act(int a, int arg) {
       draw(0);
     } break;
     case A_QCLEAN: draw(2); break;
-    case A_QGO: depth--; push_view(-1, arg == 1 ? V_STORE : arg == 2 ? V_HOME : V_SYSTEM, 0, 0, 0, NULL); draw(1); break;
+    case A_QGO: { static const int GO[6] = { V_SYSTEM, V_STORE, V_HOME, V_AVISOS, V_OPEN, V_MON };
+      depth--; push_view(-1, GO[arg >= 0 && arg < 6 ? arg : 0], 0, 0, 0, NULL); draw(1); } break;
+    case A_QDARK: cfgTheme = !cfgTheme; cfg_save(); theme_apply(); draw(2); break;
+    case A_QLIGHT_SET: if (light_get() < 0) break; if (arg > 0) SetFrontlightEnabled(1); SetFrontlightState(arg); if (arg == 0) SetFrontlightEnabled(0); draw(0); break;
     case A_HE_TOGGLE: if (arg >= 0 && arg < nwl) { home_toggle(arg); draw(0); } break;
     case A_HE_UP: if (arg >= 0 && arg < nwl) { home_move(arg, -1); draw(0); } break;
     case A_HE_DN: if (arg >= 0 && arg < nwl) { home_move(arg, 1); draw(0); } break;

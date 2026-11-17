@@ -30,6 +30,8 @@ void DrawBitmap(int x, int y, const ibitmap *b) {
   o->data[(size_t)b->width * b->height * 2] = 0;
 }
 void DrawPixel(int x, int y, int c) { add('F', x, y, 1, 1, c); }
+/* Escaquer d'un píxel (al lector s'escriu directament al llenç): render.py el dibuixa. */
+void SimChecker(int x, int y, int w, int h) { add('K', x, y, w, h, 0); }
 /* El simulador no té píxels: la captura és un gris pla (l'app la mostra com a miniatura). */
 ibitmap *BitmapFromScreen(int x, int y, int w, int h) { ibitmap *b = malloc(sizeof(ibitmap) + (size_t)w * h); (void)x; (void)y; b->width = w; b->height = h; b->depth = 8; b->scanline = w; memset(b->data, 200, (size_t)w * h); return b; }
 void SetClip(int x, int y, int w, int h) { (void)x; (void)y; (void)w; (void)h; }
