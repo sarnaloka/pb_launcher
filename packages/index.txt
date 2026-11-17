@@ -4,7 +4,7 @@ notes|Notes|4|17856|a4df91d3|Notes curtes desades al lector.
 calculadora|Calculadora|4|13836|ed0984cc|Les quatre operacions, percentatge i decimals.
 fitxers|Fitxers|4|18572|14d1dacb|Navega per carpetes; obre, mou i esborra fitxers.
 tasques|Tasques|5|17920|c2d8574e|Llista de tasques amb caselles.
-conversor|Conversor|4|13788|dcee932c|Longitud, pes, volum i temperatura.
+conversor|Conversor|5|18060|8b44ea0c|Longitud, pes, volum, temperatura i divises.
 agenda|Agenda|4|22032|162d7a78|Calendari amb esdeveniments per dia.
 sudoku|Sudoku|4|17852|96fc7434|Partides amb solució única que es desen soles.
 buscamines|Buscamines|4|13728|ba99d00e|El clàssic, en un taulell de 9 per 9.
