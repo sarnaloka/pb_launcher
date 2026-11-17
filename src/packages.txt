@@ -1,16 +1,16 @@
 # id|nom|versió|descripció
-busamb|Bus AMB|3|Parades, sortides i horaris del bus metropolità, amb PDF.
-rellotge|Rellotge|3|Hora, data i calendari del mes.
-notes|Notes|3|Notes curtes desades al lector.
-calculadora|Calculadora|3|Les quatre operacions, percentatge i decimals.
-fitxers|Fitxers|3|Navega per carpetes; obre, mou i esborra fitxers.
-tasques|Tasques|4|Llista de tasques amb caselles.
-conversor|Conversor|3|Longitud, pes, volum i temperatura.
-agenda|Agenda|3|Calendari amb esdeveniments per dia.
-sudoku|Sudoku|3|Partides amb solució única que es desen soles.
-buscamines|Buscamines|3|El clàssic, en un taulell de 9 per 9.
-temps|El temps|4|Previsió de set dies per a Barcelona i altres ciutats que triïs (cal Wi-Fi).
-noticies|Notícies|4|Titulars de canals RSS, desats per llegir sense connexió.
-lector|Lector|3|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
-xat|Xat|1|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
-ftp|FTP|1|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).
+busamb|Bus AMB|4|Parades, sortides i horaris del bus metropolità, amb PDF.
+rellotge|Rellotge|4|Hora, data i calendari del mes.
+notes|Notes|4|Notes curtes desades al lector.
+calculadora|Calculadora|4|Les quatre operacions, percentatge i decimals.
+fitxers|Fitxers|4|Navega per carpetes; obre, mou i esborra fitxers.
+tasques|Tasques|5|Llista de tasques amb caselles.
+conversor|Conversor|4|Longitud, pes, volum i temperatura.
+agenda|Agenda|4|Calendari amb esdeveniments per dia.
+sudoku|Sudoku|4|Partides amb solució única que es desen soles.
+buscamines|Buscamines|4|El clàssic, en un taulell de 9 per 9.
+temps|El temps|5|Previsió de set dies per a Barcelona i altres ciutats que triïs (cal Wi-Fi).
+noticies|Notícies|5|Titulars de canals RSS, desats per llegir sense connexió.
+lector|Lector|4|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
+xat|Xat|2|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
+ftp|FTP|2|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).

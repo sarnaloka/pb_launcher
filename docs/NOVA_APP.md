@@ -103,3 +103,21 @@ Un paquet pot tenir un temporitzador propi (`SetWeakTimer("<id>_poll", fn, ms)`,
 - No redibuixis mentre tens un teclat o un diàleg obert.
 - Tot això només existeix si `H->api >= 4`: comprova-ho i mostra un missatge si el sistema és anterior. Vegeu `src/apps/xat.c` (servidor web local per al xat) i `src/apps/ftp.c` (servidor FTP; atén ràfegues d'ordres dins un sol tic perquè connectar-se no trigui).
 - Al simulador, `poll` executa el temporitzador i `sleep N` espera N ms (`test/tour_xat.cmd`).
+
+## Aparença 2.2 (ESC_API 5)
+
+- **Icones**: són camins SVG de traç (viewBox 24 × 24) a `src/icons.h`, els mateixos del prototip de disseny. La icona
+  del paquet és una línia: `static void mod_icon(int x, int y, int s) { ic_path(IC_NOTE, x, y, s, 1.8, ICON_FG, ICON_BG); }`.
+  `ICON_FG`/`ICON_BG` són els colors que el sistema demana per a aquella rajola (en un sistema antic, negre sobre blanc).
+  Per a una icona nova: dibuixa-la a 24 × 24 només amb traços i afegeix-ne l'atribut `d` a `icons.h`. `ic_path` suavitza
+  les vores barrejant amb el color de fons que li passis; si el fons no és uniforme, passa -1.
+- **Colors**: fes servir `PAL(P_BG)`, `PAL(P_CARD)`, `PAL(P_SUB)`, `PAL(P_TILE)`, `PAL(P_LINE)`, `PAL(P_ACC)`… en lloc de
+  grisos fixos. `ui_card` ja dibuixa targetes blanques amb ombra (UI_LINE), grises (UI_SOFT) o d'accent (UI_SOLID).
+  El text principal pot continuar sent `BLACK`.
+- **Tema fosc**: el sistema dona la paleta invertida i inverteix tota la pantalla en acabar de dibuixar; per això el
+  `BLACK`/`WHITE` dels paquets també canvia. Si actualitzes una zona pel teu compte, crida `PartialUpdate` com sempre:
+  `mod.h` la redirigeix a `H->update`, que inverteix la zona abans. Redibuixa sempre tota la zona que actualitzes.
+- **Barra d'estat**: ja no és negra. A les ranures, el fons és `SB_BG` (negre si el sistema és anterior a l'API 5).
+- **Fonts**: la font i la mida que tria la persona arriben pels `fText`, `fBold`… del sistema; no desis els punters en
+  variables pròpies, perquè canvien quan es tria una altra font. Les fonts de la carpeta «Fonts» de la memòria es copien a
+  `system/fonts`; el fons d'imatge de l'inici és la primera imatge de la carpeta «Fons».

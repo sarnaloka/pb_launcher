@@ -49,11 +49,7 @@ static void v_conv(View *v) {
     y += rh;
   }
 }
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s);
-  thick(x + s / 5, y + s * 3 / 8, x + s * 4 / 5, y + s * 3 / 8, t, BLACK); thick(x + s * 4 / 5, y + s * 3 / 8, x + s * 21 / 32, y + s / 4, t, BLACK);
-  thick(x + s / 5, y + s * 5 / 8, x + s * 4 / 5, y + s * 5 / 8, t, BLACK); thick(x + s / 5, y + s * 5 / 8, x + s * 11 / 32, y + s * 3 / 4, t, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_CONVERT, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_CONV: v_conv(v); break;

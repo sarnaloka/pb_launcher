@@ -71,11 +71,7 @@ static void v_file(View *v) {
 }
 static void file_delete(void) { if (remove(fsel) != 0) say("No s'ha pogut esborrar el fitxer."); POP(); }
 static void files_up(void) { char *p = strrchr(fpath, '/'); if (p && strlen(fpath) > strlen(FLASHDIR)) *p = 0; }
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s);
-  ol(x + s / 6, y + s / 5, s / 3, s / 4, s / 14, t);
-  ol(x + s / 6, y + s * 5 / 16, s * 2 / 3, s * 15 / 32, s / 12, t);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_FOLDER, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_FILES: v_files(v); break;

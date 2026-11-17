@@ -312,13 +312,7 @@ static void save_pdf(View *v) {
     Message(ICON_ERROR, "Error", "No s'ha pogut desar el PDF.", 4000);
   }
 }
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s);
-  ol(x + s / 5, y + s / 6, s * 3 / 5, s * 7 / 12, s / 10, t);
-  FillArea(x + s / 5, y + s * 7 / 16, s * 3 / 5, t, BLACK);
-  disc(x + s * 11 / 32, y + s * 19 / 32, t * 2 / 3 + 1, BLACK); disc(x + s * 21 / 32, y + s * 19 / 32, t * 2 / 3 + 1, BLACK);
-  FillArea(x + s * 5 / 16 - t / 2, y + s * 3 / 4, t, s / 10, BLACK); FillArea(x + s * 11 / 16 - t / 2, y + s * 3 / 4, t, s / 10, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_BUS, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   if (loadErr) { header("Bus AMB", "Error"); SetFont(fText, BLACK); DrawTextRect(U / 2, TOP, SW - U, 4 * U, "No s'han pogut carregar les dades d'horaris.", ALIGN_LEFT | VALIGN_TOP); return; }
   switch (v->type) {

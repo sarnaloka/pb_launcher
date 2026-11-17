@@ -207,7 +207,7 @@ static void v_xat(View *v) {
     else snprintf(url, sizeof(url), "%s", srv >= 0 ? "No s'ha trobat l'adreça del lector" : wantSrv ? "No s'ha pogut engegar el servidor" : "Servidor aturat");
     SetFont(fSmall, DGRAY); DrawTextRect(U + U / 4, y + U / 4, SW - 3 * U - pw, ch / 2 - U / 4, srv >= 0 ? "Obre aquesta adreça al navegador del mòbil o l'ordinador:" : "Engega'l per rebre missatges.", ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
     SetFont(fBig, BLACK); DrawTextRect(U + U / 4, y + ch / 2 - U / 8, SW - 3 * U - pw, ch / 2 - U / 8, url, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
-    rcard(SW - U - pw, y + (ch - ph) / 2, pw, ph, ph / 2, 3, BLACK, WHITE); SetFont(fBold, BLACK); DrawTextRect(SW - U - pw, y + (ch - ph) / 2, pw, ph, srv >= 0 ? "Atura" : "Engega", ALIGN_CENTER | VALIGN_MIDDLE);
+    rfill(SW - U - pw, y + (ch - ph) / 2, pw, ph, ph / 2, PAL(P_TILE)); SetFont(fBold, PAL(P_FG)); DrawTextRect(SW - U - pw, y + (ch - ph) / 2, pw, ph, srv >= 0 ? "Atura" : "Engega", ALIGN_CENTER | VALIGN_MIDDLE);
     add_hit(SW - U - pw - U / 2, y, pw + U, ch, A_XAT_SRV, 0);
   }
   y += ch + U / 3;
@@ -240,12 +240,7 @@ static void on_kbd(char *text) {
   draw(1);
 }
 static void do_clear(void) { x_load(); base0 += nmsg; nmsg = 0; x_save(); toLast = 1; }
-static void mod_icon(int x, int y, int s) {      /* bafarada */
-  int t = ic_t(s);
-  thick(x + s * 5 / 16, y + s * 5 / 8, x + s * 5 / 16, y + s * 13 / 16, t, BLACK); thick(x + s * 5 / 16, y + s * 13 / 16, x + s / 2, y + s * 5 / 8, t, BLACK);
-  ol(x + s / 6, y + s / 5, s * 2 / 3, s / 2, s / 8, t);
-  FillArea(x + s * 5 / 16, y + s * 3 / 8, s * 3 / 8, t * 2 / 3 + 1, BLACK); FillArea(x + s * 5 / 16, y + s / 2, s / 4, t * 2 / 3 + 1, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_CHAT, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) { v_xat(v); }
 static void mod_action(View *v, int a, int arg) {
   (void)v; (void)arg;
@@ -258,12 +253,13 @@ static void mod_action(View *v, int a, int arg) {
 }
 static void mod_open(View *v) { (void)v; toLast = 1; unread = 0; if (H->api >= 4) H->on_unload("xat", on_unload); }
 /* Ranura de la barra d'estat: bafarada amb el nombre de missatges sense llegir (només si n'hi ha). */
-static int si_w(int h) { char t[12]; if (unread <= 0) return 0; snprintf(t, sizeof(t), "%d", unread > 99 ? 99 : unread); SetFont(fSmall, WHITE); return h * 45 / 100 + U / 4 + StringWidth(t); }
+/* Ranura de la barra d'estat: icona I × I (I = 0,55·h) i, si cal, un número. */
+static int si_w(int h) { char t[12]; int I = h * 55 / 100; if (!(unread > 0)) return 0; if (!(1)) return I; snprintf(t, sizeof(t), "%d", unread > 99 ? 99 : unread); SetFont(fSmall, BLACK); return I + U / 6 + StringWidth(t); }
 static void si_d(int x, int y, int w, int h, int fg) {
-  char t[12]; int bw = h * 45 / 100, bh = h * 32 / 100, by = y + (h - bh) / 2 - 2;
-  (void)w; snprintf(t, sizeof(t), "%d", unread > 99 ? 99 : unread);
-  rcard(x, by, bw, bh, bh / 3, 3, fg, BLACK); thick(x + bw / 4, by + bh, x + bw / 4, by + bh + 5, 3, fg);
-  SetFont(fSmall, fg); DrawTextRect(x + bw + U / 4, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
+  char t[12]; int I = h * 55 / 100;
+  (void)w;
+  ic_path(IC_CHAT, x, y + (h - I) / 2, I, 2.0, fg, SB_BG);
+  if (1) { snprintf(t, sizeof(t), "%d", unread > 99 ? 99 : unread); SetFont(fSmall, fg); DrawTextRect(x + I + U / 6, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE); }
 }
 static const StatusItem SI[1] = { { "noullegits", si_w, si_d } };
 static Module M = { ESC_API_MIN, "xat", "Xat", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 1, SI, 0, NULL };

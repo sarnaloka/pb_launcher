@@ -10,11 +10,12 @@
 #define SYSDIR FLASHDIR "/system/escriptori"
 #define PKGDIR SYSDIR "/packages"
 
-enum { V_DESK, V_STORE, V_PKG, V_SYSTEM, V_QUICK, V_HOME, V_AVISOS, V_UPDATE, V_ABOUT, V_FAVS };   /* V_SYSTEM = Configuració */
+enum { V_DESK, V_STORE, V_PKG, V_SYSTEM, V_QUICK, V_HOME, V_AVISOS, V_UPDATE, V_ABOUT, V_FAVS, V_LOOK, V_FONTS };   /* V_SYSTEM = Configuració */
 enum { A_NONE, A_BACK, A_HOME, A_PREV, A_NEXT, A_EXIT, A_APP, A_STORE_REFRESH, A_STORE_ALL, A_PKG, A_PKG_INSTALL, A_PKG_REMOVE,
        A_UPD_CHECK, A_UPD_INSTALL, A_WIFI,
        A_QUICK, A_WIDGET, A_QWIFI, A_QLIGHT_DN, A_QLIGHT_UP, A_QCLEAN, A_QGO, A_HE_TOGGLE, A_HE_UP, A_HE_DN, A_AVISOS, A_AV_ONE, A_AV_READ, A_AV_CLEAR,
-       A_CFG_GO, A_CFG_FULL, A_FAV_TOGGLE, A_STORE_FILTER, A_ABOUT_UPD };          /* les accions dels paquets comencen a 100 */
+       A_CFG_GO, A_CFG_FULL, A_FAV_TOGGLE, A_STORE_FILTER, A_ABOUT_UPD,
+       A_LOOK_THEME, A_LOOK_SIZE, A_LOOK_BG, A_LOOK_CON, A_FONT_PICK, A_DESK_PREV, A_DESK_NEXT };          /* les accions dels paquets comencen a 100 */
 typedef struct { int x, y, w, h, act, arg; } Hit;
 #define MAXSTACK 24
 #define MAXHITS 400
@@ -33,6 +34,177 @@ static void say(const char *m) { pendMsg = m; }
 
 #include "base_gen.h"
 #include "ui.h"
+
+/* ───────────── aparença: ajustos, tema, fonts i fons ─────────────
+   system/config/escriptori_config.txt: refresc, tema (0 clar, 1 fosc), mida (0..3), fons (0 cap, 1 gris, 2 imatge),
+   contrast (0 suau, 1 fort) i font (família; buit = la del lector). */
+static int cfgFull = 1, cfgLoaded, cfgTheme, cfgSize = 1, cfgBg = 1, cfgCon;
+static char cfgFont[80];
+static void cfg_load(void) {
+  FILE *f; char ln[160];
+  if (cfgLoaded) return;
+  cfgLoaded = 1;
+  f = fopen(CFG "escriptori_config.txt", "r");
+  if (!f) return;
+  while (fgets(ln, sizeof(ln), f)) {
+    ln[strcspn(ln, "\r\n")] = 0;
+    if (!strncmp(ln, "refresc=", 8)) { cfgFull = atoi(ln + 8); if (cfgFull < 1 || cfgFull > 20) cfgFull = 1; }
+    else if (!strncmp(ln, "tema=", 5)) cfgTheme = atoi(ln + 5) == 1;
+    else if (!strncmp(ln, "mida=", 5)) { cfgSize = atoi(ln + 5); if (cfgSize < 0 || cfgSize > 3) cfgSize = 1; }
+    else if (!strncmp(ln, "fons=", 5)) { cfgBg = atoi(ln + 5); if (cfgBg < 0 || cfgBg > 2) cfgBg = 1; }
+    else if (!strncmp(ln, "contrast=", 9)) cfgCon = atoi(ln + 9) == 1;
+    else if (!strncmp(ln, "font=", 5)) snprintf(cfgFont, sizeof(cfgFont), "%s", ln + 5);
+  }
+  fclose(f);
+}
+static void cfg_save(void) {
+  FILE *f = fopen(CFG "escriptori_config.txt", "w");
+  if (!f) return;
+  fprintf(f, "refresc=%d\ntema=%d\nmida=%d\nfons=%d\ncontrast=%d\nfont=%s\n", cfgFull, cfgTheme, cfgSize, cfgBg, cfgCon, cfgFont);
+  fclose(f);
+}
+/* Paleta del tema (valors que es veuen). En fosc es desa invertida a escPal i la pantalla s'inverteix en acabar de
+   dibuixar (render, sb_refresh, upd_region): així també s'inverteixen el BLACK i el WHITE que fan servir els paquets. */
+static void theme_apply(void) {
+  static const int L[2][P_N] = {
+    { 0xE5E5E5, 0xFFFFFF, 0xC8C8C8, 0x111111, 0x666666, 0xEEEEEE, 0xDDDDDD, 0x111111, 0xFFFFFF },
+    { 0xDDDDDD, 0xFFFFFF, 0x999999, 0x000000, 0x333333, 0xE5E5E5, 0xAAAAAA, 0x000000, 0xFFFFFF } };
+  static const int D[2][P_N] = {
+    { 0x0E0E0E, 0x262626, 0x0E0E0E, 0xF2F2F2, 0xAAAAAA, 0x3A3A3A, 0x333333, 0xF2F2F2, 0x0E0E0E },
+    { 0x000000, 0x2C2C2C, 0x000000, 0xFFFFFF, 0xDDDDDD, 0x444444, 0x666666, 0xFFFFFF, 0x000000 } };
+  int i;
+  cfg_load();
+  escDark = cfgTheme == 1;
+  for (i = 0; i < P_N; i++) { int c = escDark ? D[cfgCon][i] : L[cfgCon][i]; escPal[i] = escDark ? (0xFFFFFF ^ c) : c; }
+  if (cfgBg == 0) {                                   /* sense fons: blanc (o negre en fosc), targetes amb vora o més clares */
+    escPal[P_BG] = 0xFFFFFF;
+    if (escDark) escPal[P_SHADOW] = 0xFFFFFF;
+  }
+  ICON_FG = PAL(P_FG); ICON_BG = PAL(P_CARD);
+}
+/* Fonts: la família triada (regular i, si n'hi ha, negreta) a quatre mides. EnumFonts dona els noms dels fitxers
+   instal·lats al lector; les que posis a la carpeta «Fonts» de la memòria es copien a system/fonts. */
+#define FONTSDIR FLASHDIR "/Fonts"
+static ifont *fHead, *fClock;
+static int font_has(char **L, const char *n) { for (; L && *L; L++) if (!strcmp(*L, n)) return 1; return 0; }
+static void font_names(char **L, const char *fam, char *reg, char *bold, int sz) {
+  static const char *BS[] = { "-Bold", "-SemiBold", "-Semibold", "-Medium", NULL };
+  char t[140]; int i;
+  if (!fam || !fam[0]) { snprintf(reg, (size_t)sz, "%s", DEFAULTFONT); snprintf(bold, (size_t)sz, "%s", DEFAULTFONTB); return; }
+  if (font_has(L, fam)) snprintf(reg, (size_t)sz, "%s", fam);
+  else { snprintf(t, sizeof(t), "%s-Regular", fam); snprintf(reg, (size_t)sz, "%s", font_has(L, t) ? t : DEFAULTFONT); }
+  snprintf(bold, (size_t)sz, "%s", reg);
+  for (i = 0; BS[i]; i++) { snprintf(t, sizeof(t), "%s%s", fam, BS[i]); if (font_has(L, t)) { snprintf(bold, (size_t)sz, "%s", t); break; } }
+}
+static ifont *font_open(const char *name, const char *fallback, int size) { ifont *f = OpenFont(name, size, 1); return f ? f : OpenFont(fallback, size, 1); }
+static void fonts_apply(void) {
+  static const int K[4] = { 88, 100, 112, 126 };
+  ifont *old[8]; char r[140], b[140]; int k, i;
+  cfg_load(); k = K[cfgSize];
+  old[0] = fTitle; old[1] = fBold; old[2] = fText; old[3] = fSmall; old[4] = fBig; old[5] = fHuge; old[6] = fHead; old[7] = fClock;
+  font_names(cfgFont[0] ? EnumFonts() : NULL, cfgFont, r, b, sizeof(r));
+  fTitle = font_open(b, DEFAULTFONTB, U * 11 * k / 1000); fBold = font_open(b, DEFAULTFONTB, U * 9 * k / 1000);
+  fText = font_open(r, DEFAULTFONT, U * 9 * k / 1000); fSmall = font_open(r, DEFAULTFONT, U * 7 * k / 1000);
+  fBig = font_open(b, DEFAULTFONTB, U * 12 * k / 1000); fHuge = font_open(b, DEFAULTFONTB, U * 3);
+  fHead = font_open(b, DEFAULTFONTB, U * 14 * (100 + (k - 100) / 2) / 1000); fClock = font_open(b, DEFAULTFONTB, U * 9 / 2);
+  for (i = 0; i < 8; i++) if (old[i]) CloseFont(old[i]);
+}
+static void esc_copy_file(const char *a, const char *b) {
+  FILE *f = fopen(a, "rb"), *g; char buf[16384]; size_t n;
+  if (!f) return;
+  g = fopen(b, "wb");
+  if (!g) { fclose(f); return; }
+  while ((n = fread(buf, 1, sizeof(buf), f)) > 0) fwrite(buf, 1, n, g);
+  fclose(f); fclose(g);
+}
+static int is_font_file(const char *n) { const char *d = strrchr(n, '.'); return d && (!strcasecmp(d, ".ttf") || !strcasecmp(d, ".otf")); }
+/* Copia a system/fonts les fonts noves de la carpeta «Fonts» (la crea si no hi és, perquè es vegi per FTP). */
+static void fonts_import(void) {
+  DIR *d; struct dirent *e; char a[600], b[600]; struct stat st;
+  mkdir(FONTSDIR, 0777); mkdir(USERFONTDIR, 0777);
+  if (!(d = opendir(FONTSDIR))) return;
+  while ((e = readdir(d))) {
+    if (e->d_name[0] == '.' || !is_font_file(e->d_name)) continue;
+    snprintf(a, sizeof(a), "%s/%s", FONTSDIR, e->d_name); snprintf(b, sizeof(b), "%s/%s", USERFONTDIR, e->d_name);
+    if (stat(b, &st) != 0) esc_copy_file(a, b);
+  }
+  closedir(d);
+}
+#define MAXFAM 80
+static char famN[MAXFAM][64]; static int nfam, famUser[MAXFAM];
+static int style_word(const char *w) {
+  static const char *S[] = { "Regular", "Bold", "Italic", "BoldItalic", "Oblique", "BoldOblique", "Light", "LightItalic", "Medium", "MediumItalic",
+                             "SemiBold", "Semibold", "SemiBoldItalic", "Black", "Thin", "ExtraLight", "ExtraBold", "Book", "Condensed", NULL };
+  int i; for (i = 0; S[i]; i++) if (!strcmp(w, S[i])) return 1; return 0;
+}
+static int fam_cmp(const void *a, const void *b) { return strcasecmp((const char *)a, (const char *)b); }
+static void fam_scan(void) {
+  char **L, **q, t[80], *dash, rr[80]; int i, j; DIR *d; struct dirent *e;
+  fonts_import();
+  L = EnumFonts(); nfam = 0;
+  for (q = L; q && *q && nfam < MAXFAM; q++) {
+    snprintf(t, sizeof(t), "%s", *q); dash = strrchr(t, '-');
+    if (dash && style_word(dash + 1)) *dash = 0;
+    for (i = 0; i < nfam && strcmp(famN[i], t); i++) {}
+    if (i < nfam) continue;
+    snprintf(rr, sizeof(rr), "%s-Regular", t);
+    if (!font_has(L, t) && !font_has(L, rr)) continue;           /* sense versió normal (només cursiva, etc.) */
+    snprintf(famN[nfam++], 64, "%s", t);
+  }
+  qsort(famN, (size_t)nfam, sizeof(famN[0]), fam_cmp);
+  for (i = 0; i < nfam; i++) famUser[i] = 0;
+  if ((d = opendir(FONTSDIR))) {
+    while ((e = readdir(d))) if (is_font_file(e->d_name)) for (j = 0; j < nfam; j++) if (!strncmp(e->d_name, famN[j], strlen(famN[j]))) famUser[j] = 1;
+    closedir(d);
+  }
+}
+/* Fons de l'inici amb imatge: la primera .jpg/.jpeg/.png de la carpeta «Fons». */
+#define WALLDIR FLASHDIR "/Fons"
+static ibitmap *wallBmp; static char wallPath[600];
+static void wall_find(char *out, int sz) {
+  DIR *d; struct dirent *e; char best[300] = "";
+  out[0] = 0;
+  if (!(d = opendir(WALLDIR))) return;
+  while ((e = readdir(d))) {
+    const char *x = strrchr(e->d_name, '.');
+    if (e->d_name[0] == '.' || !x || (strcasecmp(x, ".jpg") && strcasecmp(x, ".jpeg") && strcasecmp(x, ".png"))) continue;
+    if (!best[0] || strcmp(e->d_name, best) < 0) snprintf(best, sizeof(best), "%s", e->d_name);
+  }
+  closedir(d);
+  if (best[0]) snprintf(out, (size_t)sz, "%s/%s", WALLDIR, best);
+}
+/* Dibuixa la imatge de fons sota la barra d'estat; retorna 1 si n'hi ha. */
+static int wall_draw(void) {
+  char p[600]; int x, y;
+  wall_find(p, sizeof(p));
+  if (!p[0]) return 0;
+  if (!wallBmp || strcmp(p, wallPath)) {
+    const char *x2 = strrchr(p, '.');
+    free(wallBmp); wallBmp = NULL;
+    snprintf(wallPath, sizeof(wallPath), "%s", p);
+    wallBmp = (x2 && !strcasecmp(x2, ".png")) ? LoadPNGStretch(p, SW, SH - SB, 1, 0) : LoadJPEG(p, SW, SH - SB, 64, 128, 1);
+  }
+  if (!wallBmp) return 0;
+  x = (SW - wallBmp->width) / 2; y = SB + (SH - SB - wallBmp->height) / 2;
+  DrawBitmap(x, y, wallBmp);
+  if (escDark) InvertArea(x, y, wallBmp->width, wallBmp->height);    /* la inversió final la deixarà com és */
+  return 1;
+}
+static int wallOn;                                    /* l'inici d'ara té imatge de fons: els textos solts porten fons */
+/* Text sobre el fons de l'inici: si hi ha imatge, amb una píndola del color de fons al darrere. */
+static void desk_text(int x, int y, int w, int h, const char *t, ifont *f, int col, int align) {
+  SetFont(f, col);
+  if (wallOn) {
+    int tw = StringWidth(t) + U, bx = align & ALIGN_CENTER ? x + (w - tw) / 2 : align & ALIGN_RIGHT ? x + w - tw : x - U / 2;
+    if (tw > w + U) { tw = w + U; bx = x - U / 2; }
+    rfill(bx, y, tw, h, h / 2, PAL(P_BG));
+  }
+  DrawTextRect(x, y, w, h, t, align | VALIGN_MIDDLE | DOTS);
+}
+static void seg(int x, int y, int w, int h, const char **lab, int n, int cur, int act);
+static int sb_on_desk(void) { return depth >= 1 && stack[depth - 1].mod < 0 && stack[depth - 1].type == V_DESK; }
+/* Actualització parcial (també per als paquets): amb el tema fosc s'inverteix abans la zona redibuixada. */
+static void upd_region(int x, int y, int w, int h) { if (escDark) InvertArea(x, y, w, h); PartialUpdate(x, y, w, h); }
 
 /* ───────────── paquets carregats ───────────── */
 typedef struct { void *dl; Module *m; char id[48]; } Loaded;
@@ -242,17 +414,8 @@ static void upd_install(void) {
 }
 
 /* ───────────── vistes del sistema base ───────────── */
-static void icon_store(int x, int y, int s) {       /* capsa amb una fletxa que hi entra */
-  int t = ic_t(s);
-  ol(x + s / 5, y + s * 7 / 16, s * 3 / 5, s * 3 / 8, s / 12, t);
-  thick(x + s / 2, y + s / 6, x + s / 2, y + s * 5 / 8, t, BLACK);
-  thick(x + s / 2, y + s * 5 / 8, x + s * 3 / 8, y + s / 2, t, BLACK); thick(x + s / 2, y + s * 5 / 8, x + s * 5 / 8, y + s / 2, t, BLACK);
-}
-static void icon_system(int x, int y, int s) {      /* dos reguladors */
-  int t = ic_t(s), r = s / 10 > t + 1 ? s / 10 : t + 2;
-  FillArea(x + s / 5, y + s * 3 / 8 - t / 2, s * 3 / 5, t, BLACK); ring(x + s * 5 / 8, y + s * 3 / 8, r, t);
-  FillArea(x + s / 5, y + s * 5 / 8 - t / 2, s * 3 / 5, t, BLACK); ring(x + s * 3 / 8, y + s * 5 / 8, r, t);
-}
+static void icon_store(int x, int y, int s) { ic_path(IC_PACKAGE, x, y, s, 1.8, ICON_FG, ICON_BG); }
+static void icon_system(int x, int y, int s) { ic_path(IC_SLIDERS, x, y, s, 1.8, ICON_FG, ICON_BG); }
 static const char *WDAYB[7] = { "diumenge", "dilluns", "dimarts", "dimecres", "dijous", "divendres", "dissabte" };
 static const char *MONTHB[12] = { "de gener", "de febrer", "de març", "d'abril", "de maig", "de juny", "de juliol", "d'agost", "de setembre", "d'octubre", "de novembre", "de desembre" };
 /* ───────────── widgets de l'escriptori ─────────────
@@ -265,14 +428,15 @@ static WEnt wl[MAXW]; static int nwl;
 static int homeRectY, homeRectH, homeHasClock;   /* zona dels widgets, per refrescar-la sola cada minut */
 static char homeKeys[MAXW][64]; static int nHome, homeLoaded;
 #define HOMECFG CFG "escriptori_inici.txt"
-static ifont *fClock;
-static void w_clock(int x, int y, int w, int h) {   /* rellotge gran a l'esquerra; dia i data a la dreta, a baix */
-  time_t now = time(NULL); struct tm *tm = localtime(&now); char t[16], d[100];
+static void w_clock(int x, int y, int w, int h) {   /* rellotge gran; a sota, salutació i data */
+  time_t now = time(NULL); struct tm *tm = localtime(&now); char t[16], d[140];
+  const char *hi = tm->tm_hour < 6 ? "Bona nit" : tm->tm_hour < 13 ? "Bon dia" : tm->tm_hour < 20 ? "Bona tarda" : "Bona nit";
+  int ch = h - U * 5 / 4;
   snprintf(t, sizeof(t), "%d:%02d", tm->tm_hour, tm->tm_min);
-  SetFont(fClock ? fClock : fHuge, BLACK); DrawTextRect(x, y, w * 6 / 10, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
-  SetFont(fBig, BLACK); DrawTextRect(x + w * 6 / 10, y + h - 3 * U, w * 4 / 10, U + U / 2, WDAYB[tm->tm_wday], ALIGN_RIGHT | VALIGN_MIDDLE);
-  snprintf(d, sizeof(d), "%d %s", tm->tm_mday, MONTHB[tm->tm_mon]);
-  SetFont(fText, DGRAY); DrawTextRect(x + w * 5 / 10, y + h - 3 * U + U + U / 2, w * 5 / 10, U + U / 4, d, ALIGN_RIGHT | VALIGN_MIDDLE);
+  if (wallOn) ui_card(x - U / 4, y, w + U / 2, h, UI_LINE);
+  SetFont(fClock ? fClock : fHuge, PAL(P_FG)); DrawTextRect(x + U / 4, y, w - U / 2, ch, t, ALIGN_LEFT | VALIGN_BOTTOM);
+  snprintf(d, sizeof(d), "%s · %s, %d %s", hi, WDAYB[tm->tm_wday], tm->tm_mday, MONTHB[tm->tm_mon]);
+  SetFont(fText, PAL(P_SUB)); DrawTextRect(x + U / 4, y + ch, w - U / 2, U + U / 4, d, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
 }
 #define w_label_value ui_lv
 static void w_batt(int x, int y, int w, int h) {
@@ -377,9 +541,11 @@ static void app_name(int i, char *d, int sz) {
   else if (i == nmods + 1) snprintf(d, (size_t)sz, "Configuració");
   else { size_t n; snprintf(d, (size_t)sz, "%s", extApps[i - nmods - 2]); n = strlen(d); if (n > 4) d[n - 4] = 0; }
 }
-/* Icona d'una aplicació dins una rajola de costat T (la vora, si n'hi ha, la dibuixa qui crida). */
-static void app_icon(int i, int x, int y, int T) {
-  int s = T * 8 / 10, ix = x + (T - s) / 2, iy = y + (T - s) / 2;
+/* Icona d'una aplicació dins una rajola de costat T (la rajola la dibuixa qui crida). pct = mida de la icona respecte de
+   la rajola (el camí ocupa uns 3/4 de la seva caixa); fg i bg = colors del traç i de la rajola (per suavitzar les vores). */
+static void app_icon(int i, int x, int y, int T, int pct, int fg, int bg) {
+  int s = T * pct / 100, ix = x + (T - s) / 2, iy = y + (T - s) / 2;
+  ICON_FG = fg; ICON_BG = bg; host.icon_fg = fg; host.icon_bg = bg;
   if (i < nmods) { if (mods[i].m->fn_icon) mods[i].m->fn_icon(ix, iy, s); }
   else if (i == nmods) icon_store(ix, iy, s);
   else if (i == nmods + 1) icon_system(ix, iy, s);
@@ -387,35 +553,49 @@ static void app_icon(int i, int x, int y, int T) {
     char d[200], t[8];
     app_name(i, d, sizeof(d));
     t[0] = d[0]; t[1] = 0; if ((unsigned char)d[0] >= 0xC0) { t[1] = d[1]; t[2] = 0; }
-    SetFont(T > 2 * U + U / 2 ? fHuge : fBig, BLACK); DrawTextRect(x, y, T, T, t, ALIGN_CENTER | VALIGN_MIDDLE);
+    SetFont(T > 2 * U + U / 2 ? fHuge : fBig, fg); DrawTextRect(x, y, T, T, t, ALIGN_CENTER | VALIGN_MIDDLE);
   }
+  ICON_FG = PAL(P_FG); ICON_BG = PAL(P_CARD); host.icon_fg = ICON_FG; host.icon_bg = ICON_BG;
 }
 static void v_desk(View *v) {
-  char d[200]; int cols = 4, T = 3 * U, cw = (SW - U) / cols, cellh = T + U + U / 2 + U / 3, dockH = 3 * U + U / 2, dockY = SH - U / 2 - dockH;
-  int y = SB + U / 2, i, k, total, nd = 0, dock[4], grid[240], ng = 0, avail, rows, per;
+  char d[200]; int cols = 4, T = 3 * U + U / 4, cw = (SW - U) / cols, cellh = T + U + U / 2 + U / 4, dockH = 4 * U, dockY = SH - U / 2 - dockH, navh = U + U / 2;
+  int y = SB + U / 4, i, k, total, nd = 0, dock[4], grid[240], ng = 0, avail, rows, per;
   ext_scan(); wl_collect(); home_load(); fav_load();
+  wallOn = cfgBg == 2 && wall_draw();
   total = nmods + 2 + nExt;
   for (i = 0; i < nFav; i++) { int a = app_by_key(favKeys[i]); if (a >= 0) dock[nd++] = a; }
   for (i = 0; i < total && ng < 240; i++) { int in = 0; for (k = 0; k < nd; k++) if (dock[k] == i) in = 1; if (!in) grid[ng++] = i; }
-  y += home_draw(y, (dockY - y) * 55 / 100) + U / 4;
+  y += home_draw(y, (dockY - y) * 58 / 100) + U / 3;
   avail = dockY - U / 2 - y;
   rows = avail / cellh; if (rows < 1) rows = 1;
-  if (ng > rows * cols) { rows = (avail - NAVH - U / 4) / cellh; if (rows < 1) rows = 1; footY = dockY - U / 2 - NAVH; }
+  if (ng > rows * cols) { rows = (avail - navh - U / 4) / cellh; if (rows < 1) rows = 1; }
   per = rows * cols;
   pages = ng ? (ng + per - 1) / per : 1; if (v->page >= pages) v->page = pages - 1;
   for (k = 0, i = v->page * per; i < ng && k < per; i++, k++) {
     int a = grid[i], cx = U / 2 + (k % cols) * cw, cy = y + (k / cols) * cellh, tx = cx + (cw - T) / 2;
-    ui_card(tx, cy, T, T, UI_LINE); app_icon(a, tx, cy, T); app_name(a, d, sizeof(d));
-    SetFont(fSmall, BLACK); DrawTextRect(cx + 2, cy + T + U / 8, cw - 4, U + U / 4, d, ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
+    ui_card(tx, cy, T, T, UI_LINE); app_icon(a, tx, cy, T, 62, PAL(P_FG), PAL(P_CARD)); app_name(a, d, sizeof(d));
+    desk_text(cx + U / 4, cy + T + U / 4, cw - U / 2, U + U / 8, d, fSmall, PAL(P_FG), ALIGN_CENTER);
     add_hit(cx, cy, cw, cellh, A_APP, a);
   }
-  if (nd) {                                  /* barra de preferits: negra, amb rajoles blanques */
-    int slot = (SW - U) / nd, t2 = 2 * U;
-    rfill(U / 2, dockY, SW - U, dockH, dockH * 36 / 100, BLACK);
+  if (pages > 1) {                            /* punts de pàgina, amb fletxes petites als costats */
+    int py = dockY - U / 2 - navh, dw = U / 2, gap = U / 3, tot = pages * dw + (pages - 1) * gap + U / 2, dx = (SW - tot) / 2, b = navh;
+    round_icon(U / 2, py, b, v->page > 0 ? 0 : 2, IC_BACK);
+    round_icon(SW - U / 2 - b, py, b, v->page < pages - 1 ? 0 : 2, IC_FORWARD);
+    for (k = 0; k < pages; k++) {
+      int w = k == v->page ? dw + U / 2 : dw;
+      rfill(dx, py + (navh - dw) / 2, w, dw, dw / 2, k == v->page ? PAL(P_FG) : PAL(P_LINE));
+      dx += w + gap;
+    }
+    if (v->page > 0) add_hit(0, py - U / 4, SW / 2, navh + U / 2, A_DESK_PREV, 0);
+    if (v->page < pages - 1) add_hit(SW / 2, py - U / 4, SW / 2, navh + U / 2, A_DESK_NEXT, 0);
+  }
+  if (nd) {                                   /* preferits: targeta flotant; el primer, ple */
+    int slot = (SW - U - U / 2) / nd, t2 = 2 * U + U / 3, ty = dockY + U / 3;
+    ui_card(U / 2, dockY, SW - U, dockH, UI_LINE);
     for (k = 0; k < nd; k++) {
-      int sx = U / 2 + k * slot, tx = sx + (slot - t2) / 2, ty = dockY + U / 4;
-      rfill(tx, ty, t2, t2, t2 * 3 / 10, WHITE); app_icon(dock[k], tx, ty, t2); app_name(dock[k], d, sizeof(d));
-      SetFont(fSmall, WHITE); DrawTextRect(sx + 2, ty + t2, slot - 4, dockH - t2 - U / 4, d, ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
+      int sx = U / 2 + U / 4 + k * slot, tx = sx + (slot - t2) / 2, bg = k == 0 ? PAL(P_ACC) : PAL(P_TILE), fg = k == 0 ? PAL(P_ACCFG) : PAL(P_FG);
+      rfill(tx, ty, t2, t2, t2 * 35 / 100, bg); app_icon(dock[k], tx, ty, t2, 76, fg, bg); app_name(dock[k], d, sizeof(d));
+      SetFont(fSmall, PAL(P_FG)); DrawTextRect(sx + 2, ty + t2 + U / 8, slot - 4, dockH - t2 - U / 3 - U / 4, d, ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
       add_hit(sx, dockY, slot, dockH, A_APP, dock[k]);
     }
   }
@@ -423,8 +603,9 @@ static void v_desk(View *v) {
     int old = pkgs_incompatible(); char t[260];
     if (old) snprintf(t, sizeof(t), "Hi ha %d paquets d'una versió anterior del sistema.\nObre «Paquets» i prem «Instal·la i actualitza-ho tot».", old);
     else snprintf(t, sizeof(t), "Encara no hi ha cap aplicació instal·lada.\nObre «Paquets» amb el Wi-Fi connectat per baixar-ne.");
-    SetFont(fText, BLACK);
-    DrawTextRect(U / 2, y + cellh + U / 2, SW - U, 4 * U, t, ALIGN_CENTER | VALIGN_TOP);
+    if (wallOn) ui_card(U / 2, y + cellh + U / 4, SW - U, 4 * U + U / 2, UI_LINE);
+    SetFont(fText, PAL(P_FG));
+    DrawTextRect(U, y + cellh + U / 2, SW - 2 * U, 4 * U, t, ALIGN_CENTER | VALIGN_TOP);
   }
 }
 /* Tria dels preferits */
@@ -438,8 +619,8 @@ static void v_favs(View *v) {
   for (i = v->page * per; i < n && i < (v->page + 1) * per; i++) {
     int ry = y + (i - v->page * per) * rh, on = fav_pos(app_key(i)) >= 0, t2 = rh - U / 4 - U / 2;
     ui_card(U / 2, ry, SW - U, rh - U / 4, on ? UI_LINE : UI_SOFT);
-    app_icon(i, U, ry + U / 4, t2); app_name(i, d, sizeof(d));
-    SetFont(fBold, BLACK); DrawTextRect(U + t2 + U / 2, ry, SW - 4 * U - t2 - tw, rh - U / 4, d, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    rfill(U, ry + U / 4, t2, t2, t2 * 35 / 100, PAL(P_TILE)); app_icon(i, U, ry + U / 4, t2, 72, PAL(P_FG), PAL(P_TILE)); app_name(i, d, sizeof(d));
+    SetFont(fBold, PAL(P_FG)); DrawTextRect(U + t2 + U / 2, ry, SW - 4 * U - t2 - tw, rh - U / 4, d, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
     ui_toggle(SW - U - tw, ry + (rh - U / 4 - th) / 2, tw, th, on);
     add_hit(U / 2, ry, SW - U, rh - U / 4, A_FAV_TOGGLE, i);
   }
@@ -465,8 +646,9 @@ static void v_home(View *v) {
     add_hit(tx - U / 2, ry, tw + U, rh - U / 4, A_HE_TOGGLE, k);
     if (en) {
       int ux = tx - U - 2 * bs - U / 4, up = i > 0, dn = i < nen - 1, ah = bs * 5 / 10;
-      rcard(ux, by, bs, bs, 8, 2, up ? BLACK : LGRAY, WHITE); ic_arrow(ux + bs / 2, by + (bs - ah) / 2, ah, 0, up ? BLACK : LGRAY);
-      rcard(ux + bs + U / 4, by, bs, bs, 8, 2, dn ? BLACK : LGRAY, WHITE); ic_arrow(ux + bs + U / 4 + bs / 2, by + (bs - ah) / 2, ah, 1, dn ? BLACK : LGRAY);
+      (void)ah;
+      round_icon(ux, by, bs, up ? 0 : 2, IC_UP);
+      round_icon(ux + bs + U / 4, by, bs, dn ? 0 : 2, IC_DOWN);
       if (up) add_hit(ux, by, bs, bs, A_HE_UP, k);
       if (dn) add_hit(ux + bs + U / 4, by, bs, bs, A_HE_DN, k);
     }
@@ -554,7 +736,7 @@ static void v_avisos(View *v) {
   for (i = v->page * per; i < nAv && i < (v->page + 1) * per; i++) {
     int ry = y + (i - v->page * per) * rh, nw = 6 * U, un = !av[i].read; char tm[32], head[120]; time_t tt = (time_t)av[i].t;
     ui_card(U / 2, ry, SW - U, rh - U / 4, un ? UI_LINE : UI_SOFT);
-    if (un) rfill(U, ry + U / 2 + U / 8, U / 2, U / 2, U / 4, BLACK);
+    if (un) rfill(U, ry + U / 2 + U / 8, U / 2, U / 2, U / 4, PAL(P_FG));
     { time_t nw = time(NULL); struct tm a = *localtime(&tt), b = *localtime(&nw); long dd = (long)((nw - b.tm_hour * 3600 - b.tm_min * 60 - b.tm_sec) - tt);
       if (a.tm_year == b.tm_year && a.tm_yday == b.tm_yday) snprintf(tm, sizeof(tm), "Avui %d:%02d", a.tm_hour, a.tm_min);
       else if (dd > 0 && dd <= 86400) snprintf(tm, sizeof(tm), "Ahir %d:%02d", a.tm_hour, a.tm_min);
@@ -570,32 +752,8 @@ static void v_avisos(View *v) {
 
 /* ───────────── tauler ràpid ───────────── */
 static int light_get(void) { int v = GetFrontlightState(); return v == INT_MIN ? -1 : v; }
-/* Ajustos desats (system/config/escriptori_config.txt) */
-static int cfgFull = 1, cfgLoaded;          /* refresc complet cada N pantalles (1 = a cada pantalla) */
-static void cfg_load(void) {
-  FILE *f; char ln[80];
-  if (cfgLoaded) return;
-  cfgLoaded = 1;
-  f = fopen(CFG "escriptori_config.txt", "r");
-  if (!f) return;
-  while (fgets(ln, sizeof(ln), f)) if (!strncmp(ln, "refresc=", 8)) { cfgFull = atoi(ln + 8); if (cfgFull < 1 || cfgFull > 20) cfgFull = 1; }
-  fclose(f);
-}
-static void cfg_save(void) { FILE *f = fopen(CFG "escriptori_config.txt", "w"); if (!f) return; fprintf(f, "refresc=%d\n", cfgFull); fclose(f); }
-static void ic_power(int cx, int cy, int r, int col) { int t = r / 5 > 3 ? r / 5 : 3; ic_arc(cx, cy, r * 8 / 10, 35, 325, t, col); thick(cx, cy - r, cx, cy - r / 6, t, col); }
-static void ic_info(int cx, int cy, int r, int col) { int t = r / 5 > 3 ? r / 5 : 3; ic_arc(cx, cy, r * 9 / 10, 0, 360, t, col); FillArea(cx - t / 2, cy - r / 8, t, r / 2 + r / 8, col); disc(cx, cy - r * 2 / 5, t * 2 / 3 + 1, col); }
-static void ic_down(int cx, int cy, int r, int col) {
-  int t = r / 5 > 3 ? r / 5 : 3;
-  thick(cx, cy - r * 8 / 10, cx, cy + r / 4, t, col); thick(cx, cy + r / 4, cx - r / 2, cy - r / 4, t, col); thick(cx, cy + r / 4, cx + r / 2, cy - r / 4, t, col);
-  FillArea(cx - r * 7 / 10, cy + r * 7 / 10, r * 14 / 10, t, col);
-}
-static void ic_sliders(int cx, int cy, int r, int col, int bg) {
-  int t = r / 5 > 3 ? r / 5 : 3, k = r / 4 > t ? r / 4 : t + 1;
-  FillArea(cx - r * 8 / 10, cy - r * 4 / 10 - t / 2, r * 16 / 10, t, col); disc(cx + r * 3 / 10, cy - r * 4 / 10, k + t / 2, col); disc(cx + r * 3 / 10, cy - r * 4 / 10, k - t / 2, bg);
-  FillArea(cx - r * 8 / 10, cy + r * 4 / 10 - t / 2, r * 16 / 10, t, col); disc(cx - r * 3 / 10, cy + r * 4 / 10, k + t / 2, col); disc(cx - r * 3 / 10, cy + r * 4 / 10, k - t / 2, bg);
-}
 static void v_quick(View *v) {
-  int gap = U / 2, tw = (SW - U - gap) / 2, th = 5 * U + U / 2, x0 = U / 2, x1 = U / 2 + tw + gap, y = TOP, net = QueryNetwork(), lv = light_get(), bs = 2 * U + U / 4, r = U * 8 / 10, bh = 2 * U + U / 2, nu = avisos_unread(), i;
+  int gap = U / 2, tw = (SW - U - gap) / 2, th = 5 * U + U / 2, x0 = U / 2, x1 = U / 2 + tw + gap, y = TOP, net = QueryNetwork(), lv = light_get(), bs = 2 * U + U / 4, is = U * 3 / 2, bh = 2 * U + U / 2, nu = avisos_unread(), i;
   char t[100], st[60]; int solid, lh = 5 * U + U / 4;
   (void)v;
   snprintf(t, sizeof(t), "Bateria %d%%%s", GetBatteryPower(), IsCharging() ? " · carregant" : "");
@@ -604,31 +762,34 @@ static void v_quick(View *v) {
   solid = (net & NET_WIFIREADY) != 0;
   snprintf(st, sizeof(st), "%s", solid ? "Connectat · toca per desconnectar" : (net & NET_WIFI) ? "Encès · toca per connectar" : "Apagat · toca per connectar");
   ui_tile(x0, y, tw, th, "Wi-Fi", st, solid, A_QWIFI, 0);
-  ic_signal(x0 + U + U / 2, y + U + U / 2, U * 3 / 2, wifi_level(), solid ? WHITE : BLACK, solid ? DGRAY : LGRAY, solid ? -1 : BLACK);
+  ic_signal(x0 + U + U / 2, y + U + U / 2, U * 3 / 2, wifi_level(), solid ? PAL(P_ACCFG) : PAL(P_FG), solid ? PAL(P_SUB) : PAL(P_SHADOW), solid ? -1 : PAL(P_FG));
   if (nu) snprintf(st, sizeof(st), nu == 1 ? "%d de nou" : "%d de nous", nu); else snprintf(st, sizeof(st), "Res de nou");
   ui_tile(x1, y, tw, th, "Avisos", st, 0, A_AVISOS, 0);
-  ic_bell(x1 + U + U / 2, y + U + U / 2, U * 3 / 2, BLACK, WHITE);
+  ic_path(IC_BELL, x1 + U * 3 / 4, y + U * 3 / 4, is, 1.8, PAL(P_FG), PAL(P_CARD));
   /* llum: barra de 10 nivells entre els botons de menys i més */
   y += th + gap;
   ui_card(x0, y, SW - U, lh, UI_LINE);
-  ic_sun(x0 + U + U / 2, y + U + U / 4, r, BLACK);
-  SetFont(fBold, BLACK); DrawTextRect(x0 + 3 * U, y + U / 4, 8 * U, 2 * U, "Llum", ALIGN_LEFT | VALIGN_MIDDLE);
+  ic_path(IC_SUN, x0 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(x0 + 3 * U, y + U / 4, 8 * U, 2 * U, "Llum", ALIGN_LEFT | VALIGN_MIDDLE);
   if (lv >= 0) {
     int by = y + 2 * U + U / 2, sx = x0 + U / 2 + bs + U / 2, sw = SW - U - 2 * (U / 2 + bs + U / 2), g = U / 5, w1 = (sw - 9 * g) / 10, sh = U + U / 4, on = (lv + 5) / 10;
     snprintf(st, sizeof(st), "%d%%", lv);
-    SetFont(fBold, BLACK); DrawTextRect(SW - U - 6 * U, y + U / 4, 5 * U, 2 * U, st, ALIGN_RIGHT | VALIGN_MIDDLE);
-    round_btn(x0 + U / 2, by, bs, 0, BLACK); ic_minus(x0 + U / 2 + bs / 2, by + bs / 2, bs * 5 / 10, BLACK);
-    round_btn(SW - U - bs, by, bs, 0, BLACK); ic_plus(SW - U - bs / 2, by + bs / 2, bs * 5 / 10, BLACK);
-    for (i = 0; i < 10; i++) { if (i < on) rfill(sx + i * (w1 + g), by + (bs - sh) / 2, w1, sh, U / 4, BLACK); else rcard(sx + i * (w1 + g), by + (bs - sh) / 2, w1, sh, U / 4, 3, BLACK, WHITE); }
+    SetFont(fBold, PAL(P_FG)); DrawTextRect(SW - U - 6 * U, y + U / 4, 5 * U, 2 * U, st, ALIGN_RIGHT | VALIGN_MIDDLE);
+    round_icon(x0 + U / 2, by, bs, 0, IC_MINUS);
+    round_icon(SW - U - bs, by, bs, 0, IC_PLUS);
+    for (i = 0; i < 10; i++) rfill(sx + i * (w1 + g), by + (bs - sh) / 2, w1, sh, U / 4, i < on ? PAL(P_ACC) : PAL(P_TILE));
     add_hit(x0, by - U / 4, U / 2 + bs + U / 2, bs + U / 2, A_QLIGHT_DN, 0);
     add_hit(SW - U - bs - U / 2, by - U / 4, bs + U, bs + U / 2, A_QLIGHT_UP, 0);
-  } else { SetFont(fText, DGRAY); DrawTextRect(x0 + U, y + 2 * U + U / 2, SW - 3 * U, 2 * U, "Aquest lector no informa de la llum frontal.", ALIGN_LEFT | VALIGN_MIDDLE | DOTS); }
-  /* fila 3: neteja de pantalla i configuració */
+  } else { SetFont(fText, PAL(P_SUB)); DrawTextRect(x0 + U, y + 2 * U + U / 2, SW - 3 * U, 2 * U, "Aquest lector no informa de la llum frontal.", ALIGN_LEFT | VALIGN_MIDDLE | DOTS); }
+  /* fila 3: neteja de pantalla i aparença; fila 4: configuració */
   y += lh + gap;
   ui_tile(x0, y, tw, th - U, "Neteja la pantalla", "Refresc complet", 0, A_QCLEAN, 0);
-  ic_refresh(x0 + U + U / 2, y + U + U / 4, r, BLACK);
-  ui_tile(x1, y, tw, th - U, "Configuració", "Tots els ajustos", 0, A_QGO, 0);
-  ic_sliders(x1 + U + U / 2, y + U + U / 4, r, BLACK, WHITE);
+  ic_path(IC_REFRESH, x0 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
+  ui_tile(x1, y, tw, th - U, "Aparença", cfgTheme ? "Tema fosc" : "Tema clar", 0, A_CFG_GO, V_LOOK);
+  ic_path(IC_CONTRAST, x1 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
+  y += th - U + gap;
+  ui_tile(x0, y, SW - U, th - U, "Configuració", "Tots els ajustos", 0, A_QGO, 0);
+  ic_path(IC_SLIDERS, x0 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
   button(U / 2, SH - U / 2 - bh, SW - U, bh, "Surt de l'Escriptori", 0, A_EXIT, 0);
 }
 static void v_store(View *v) {
@@ -643,14 +804,8 @@ static void v_store(View *v) {
   }
   snprintf(sub, sizeof(sub), "%d al catàleg · %d instal·lats", ncat, inst);
   header("Paquets", sub);
-  rcard(U / 2, y, SW - U, sh, sh / 2, 3, BLACK, WHITE);                    /* filtre segmentat */
-  for (k = 0; k < 3; k++) {
-    int sx = U / 2 + 6 + k * sw; char lab[40];
-    if (k == 2 && upd) snprintf(lab, sizeof(lab), "%s · %d", FL[k], upd); else snprintf(lab, sizeof(lab), "%s", FL[k]);
-    if (v->a == k) rfill(sx, y + 6, sw, sh - 12, (sh - 12) / 2, BLACK);
-    SetFont(v->a == k ? fBold : fText, v->a == k ? WHITE : BLACK); DrawTextRect(sx, y, sw, sh, lab, ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
-    add_hit(sx, y, sw, sh, A_STORE_FILTER, k);
-  }
+  { char l3[40]; const char *labs[3]; snprintf(l3, sizeof(l3), upd ? "%s · %d" : "%s", FL[2], upd); labs[0] = FL[0]; labs[1] = FL[1]; labs[2] = l3;
+    seg(U / 2, y, SW - U, sh, labs, 3, v->a, A_STORE_FILTER); (void)sw; (void)k; }
   y += sh + U / 3;
   button(U / 2, y, bw, bh, "Actualitza el catàleg", 0, A_STORE_REFRESH, 0);
   if (pend) button(U / 2 + bw + U / 3, y, bw, bh, inst ? "Instal·la i actualitza-ho tot" : "Instal·la-ho tot", 1, A_STORE_ALL, 0);
@@ -664,11 +819,11 @@ static void v_store(View *v) {
     const char *lab = !pv ? "Instal·la" : u ? "Actualitza" : "Obre";
     ui_card(U / 2, y, SW - U, ch, UI_LINE);
     ui_card(U / 2 + U / 4, y + U / 4, T, T, UI_SOFT);
-    if (m >= 0) app_icon(m, U / 2 + U / 4, y + U / 4, T); else icon_store(U / 2 + U / 4 + T / 10, y + U / 4 + T / 10, T * 8 / 10);
+    if (m >= 0) app_icon(m, U / 2 + U / 4, y + U / 4, T, 72, PAL(P_FG), PAL(P_TILE)); else app_icon(nmods, U / 2 + U / 4, y + U / 4, T, 72, PAL(P_FG), PAL(P_TILE));
     SetFont(fBold, BLACK); DrawTextRect(U + T + U / 4, y + U / 6, px - 2 * U - T, ch / 2 - U / 8, q->name, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
     SetFont(fSmall, DGRAY); DrawTextRect(U + T + U / 4, y + ch / 2 - U / 8, px - 2 * U - T, ch / 2 - U / 8, q->desc, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
     add_hit(U / 2, y, SW - U, ch, A_PKG, idx[i]);
-    if (!pv || u) { rfill(px, py, pw, ph, ph / 2, BLACK); SetFont(fBold, WHITE); } else { rcard(px, py, pw, ph, ph / 2, 3, BLACK, WHITE); SetFont(fBold, BLACK); }
+    if (!pv || u) { pill(px, py, pw, ph, 1); SetFont(fBold, PAL(P_ACCFG)); } else { rfill(px, py, pw, ph, ph / 2, PAL(P_TILE)); SetFont(fBold, PAL(P_FG)); }
     DrawTextRect(px, py, pw, ph, lab, ALIGN_CENTER | VALIGN_MIDDLE);
     if (!pv || u) add_hit(px - U / 4, y, pw + U / 2, ch, A_PKG_INSTALL, idx[i]); else if (m >= 0) add_hit(px - U / 4, y, pw + U / 2, ch, A_APP, m);
     y += rh;
@@ -692,67 +847,162 @@ static void v_pkg(View *v) {
 }
 /* ───────────── configuració ───────────── */
 static int cfg_group(int y, const char *label, int nrows, int rh) {      /* etiqueta + targeta del grup; retorna la y de la primera fila */
-  SetFont(fSmall, DGRAY); DrawTextRect(U, y, SW - 2 * U, U + U / 4, label, ALIGN_LEFT | VALIGN_MIDDLE);
-  rcard(U / 2, y + U + U / 4, SW - U, nrows * rh, U * 9 / 10, 3, BLACK, WHITE);
+  SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U, y, SW - 2 * U, U + U / 4, label, ALIGN_LEFT | VALIGN_MIDDLE);
+  ui_card(U / 2, y + U + U / 4, SW - U, nrows * rh, UI_LINE);
   return y + U + U / 4;
 }
 enum { CR_CHEV, CR_ON, CR_OFF, CR_NONE };
 static void cfg_row(int y, int rh, int first, const char *title, const char *value, int kind, int act, int arg) {
-  int xr = SW - U, tw = 2 * U, th = U + U / 4;
-  if (!first) FillArea(U, y, SW - 2 * U, 2, LGRAY);
-  SetFont(fBold, BLACK); DrawTextRect(3 * U + U / 4, y, SW / 2 - 3 * U, rh, title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
-  if (kind == CR_CHEV) { chev(xr - U / 2, y + rh / 2, U / 2, 1, DGRAY); xr -= U + U / 4; }
+  int xr = SW - U, tw = 2 * U, th = U + U / 4, cs = U;
+  if (!first) FillArea(U, y, SW - 2 * U, 2, PAL(P_LINE));
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(3 * U + U / 4, y, SW / 2 - 3 * U, rh, title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  if (kind == CR_CHEV) { ic_path(IC_FORWARD, xr - cs, y + (rh - cs) / 2, cs, 2.2, PAL(P_SUB), PAL(P_CARD)); xr -= cs + U / 4; }
   else if (kind == CR_ON || kind == CR_OFF) { ui_toggle(xr - tw, y + (rh - th) / 2, tw, th, kind == CR_ON); xr -= tw + U / 2; }
-  if (value && value[0]) { SetFont(fSmall, DGRAY); DrawTextRect(SW / 2 - U, y, xr - (SW / 2 - U), rh, value, ALIGN_RIGHT | VALIGN_MIDDLE | DOTS); }
+  if (value && value[0]) { SetFont(fSmall, PAL(P_SUB)); DrawTextRect(SW / 2 - U, y, xr - (SW / 2 - U), rh, value, ALIGN_RIGHT | VALIGN_MIDDLE | DOTS); }
   if (act) add_hit(U / 2, y, SW - U, rh, act, arg);
 }
+static void row_icon(const char *ic, int y, int rh) { int s = U + U / 3; ic_path(ic, U + U / 4, y + (rh - s) / 2, s, 1.8, PAL(P_FG), PAL(P_CARD)); }
 static void v_config(View *v) {
-  int y = TOP - U / 4, rh = 2 * U + U / 3, g = U / 3, net = QueryNetwork(), lv = light_get(), ix = U + U + U / 8, r = U * 6 / 10, nu = avisos_unread(), bs, yy; char t[80];
+  int y = TOP - U / 4, rh = 2 * U + U / 8, g = U / 4, net = QueryNetwork(), lv = light_get(), nu = avisos_unread(), bs, yy; char t[80];
   (void)v; cfg_load(); wl_collect(); home_load(); fav_load();
   header("Configuració", "");
   yy = cfg_group(y, "CONNEXIÓ", 1, rh);
   cfg_row(yy, rh, 1, "Wi-Fi", (net & NET_WIFIREADY) ? "Connectat" : (net & NET_WIFI) ? "Encès, sense connexió" : "Apagat", (net & NET_WIFIREADY) ? CR_ON : CR_OFF, A_QWIFI, 0);
-  ic_signal(ix, yy + rh / 2, r * 2, wifi_level(), BLACK, LGRAY, -1);
+  ic_signal(U + U / 4 + (U + U / 3) / 2, yy + rh / 2, U + U / 8, wifi_level(), PAL(P_FG), PAL(P_SHADOW), -1);
   y = yy + rh + g;
-  yy = cfg_group(y, "PANTALLA", 2, rh);
+  yy = cfg_group(y, "PANTALLA", 3, rh);
+  snprintf(t, sizeof(t), "%s · %s", cfgTheme ? "Fosc" : "Clar", cfgFont[0] ? cfgFont : "font del lector");
+  cfg_row(yy, rh, 1, "Aparença", t, CR_CHEV, A_CFG_GO, V_LOOK);
+  row_icon(IC_CONTRAST, yy, rh);
   if (lv >= 0) snprintf(t, sizeof(t), "%d%%", lv); else snprintf(t, sizeof(t), "No disponible");
   bs = rh - U / 2;
-  cfg_row(yy, rh, 1, "Llum", "", CR_NONE, 0, 0);
-  ic_sun(ix, yy + rh / 2, r, BLACK);
+  cfg_row(yy + rh, rh, 0, "Llum", "", CR_NONE, 0, 0);
+  row_icon(IC_SUN, yy + rh, rh);
   if (lv >= 0) {
-    round_btn(SW - U - bs, yy + U / 4, bs, 0, BLACK); ic_plus(SW - U - bs / 2, yy + rh / 2, bs / 2, BLACK);
-    round_btn(SW - U - 2 * bs - 3 * U, yy + U / 4, bs, 0, BLACK); ic_minus(SW - U - 2 * bs - 3 * U + bs / 2, yy + rh / 2, bs / 2, BLACK);
-    SetFont(fBold, BLACK); DrawTextRect(SW - U - bs - 3 * U, yy, 3 * U, rh, t, ALIGN_CENTER | VALIGN_MIDDLE);
-    add_hit(SW - U - bs - U, yy, bs + U + U / 2, rh, A_QLIGHT_UP, 0);
-    add_hit(SW - U - 2 * bs - 3 * U - U / 2, yy, bs + U + U / 2, rh, A_QLIGHT_DN, 0);
-  } else { SetFont(fSmall, DGRAY); DrawTextRect(SW / 2, yy, SW / 2 - U, rh, t, ALIGN_RIGHT | VALIGN_MIDDLE); }
+    round_icon(SW - U - bs, yy + rh + U / 4, bs, 0, IC_PLUS);
+    round_icon(SW - U - 2 * bs - 3 * U, yy + rh + U / 4, bs, 0, IC_MINUS);
+    SetFont(fBold, PAL(P_FG)); DrawTextRect(SW - U - bs - 3 * U, yy + rh, 3 * U, rh, t, ALIGN_CENTER | VALIGN_MIDDLE);
+    add_hit(SW - U - bs - U, yy + rh, bs + U + U / 2, rh, A_QLIGHT_UP, 0);
+    add_hit(SW - U - 2 * bs - 3 * U - U / 2, yy + rh, bs + U + U / 2, rh, A_QLIGHT_DN, 0);
+  } else { SetFont(fSmall, PAL(P_SUB)); DrawTextRect(SW / 2, yy + rh, SW / 2 - U, rh, t, ALIGN_RIGHT | VALIGN_MIDDLE); }
   if (cfgFull <= 1) snprintf(t, sizeof(t), "A cada pantalla"); else snprintf(t, sizeof(t), "Cada %d pantalles", cfgFull);
-  cfg_row(yy + rh, rh, 0, "Refresc complet", t, CR_CHEV, A_CFG_FULL, 0);
-  ic_refresh(ix, yy + rh + rh / 2, r, BLACK);
-  y = yy + 2 * rh + g;
+  cfg_row(yy + 2 * rh, rh, 0, "Refresc complet", t, CR_CHEV, A_CFG_FULL, 0);
+  row_icon(IC_REFRESH, yy + 2 * rh, rh);
+  y = yy + 3 * rh + g;
   yy = cfg_group(y, "ESCRIPTORI", 4, rh);
   { int i, n = 0; for (i = 0; i < nHome; i++) if (wl_find(homeKeys[i]) >= 0) n++; snprintf(t, sizeof(t), n == 1 ? "%d widget" : "%d widgets", n); }
   cfg_row(yy, rh, 1, "Inici i widgets", t, CR_CHEV, A_CFG_GO, V_HOME);
-  ic_grid(ix, yy + rh / 2, r, BLACK);
+  row_icon(IC_GRID, yy, rh);
   snprintf(t, sizeof(t), "%d de 4", nFav);
   cfg_row(yy + rh, rh, 0, "Preferits", t, CR_CHEV, A_CFG_GO, V_FAVS);
-  rfill(ix - r, yy + rh + rh / 2 - r / 3, 2 * r, r * 2 / 3 + 2, r / 3, BLACK);
+  row_icon(IC_STAR, yy + rh, rh);
   if (nu) snprintf(t, sizeof(t), nu == 1 ? "%d de nou" : "%d de nous", nu); else snprintf(t, sizeof(t), "Res de nou");
   cfg_row(yy + 2 * rh, rh, 0, "Avisos", t, CR_CHEV, A_AVISOS, 0);
-  ic_bell(ix, yy + 2 * rh + rh / 2, r * 2, BLACK, WHITE);
+  row_icon(IC_BELL, yy + 2 * rh, rh);
   snprintf(t, sizeof(t), nmods == 1 ? "%d instal·lat" : "%d instal·lats", nmods);
   cfg_row(yy + 3 * rh, rh, 0, "Paquets", t, CR_CHEV, A_CFG_GO, V_STORE);
-  icon_store(ix - r - r / 3, yy + 3 * rh + rh / 2 - r - r / 3, 2 * r + 2 * (r / 3));
+  row_icon(IC_PACKAGE, yy + 3 * rh, rh);
   y = yy + 4 * rh + g;
   yy = cfg_group(y, "SISTEMA", 3, rh);
   if (updState == 2) snprintf(t, sizeof(t), "Versió %s disponible", updName); else if (updState == 1) snprintf(t, sizeof(t), "Al dia"); else if (updState == 3) snprintf(t, sizeof(t), "Instal·lada: reobre l'Escriptori"); else snprintf(t, sizeof(t), "Versió %s", APP_VERNAME);
   cfg_row(yy, rh, 1, "Actualització", t, CR_CHEV, A_CFG_GO, V_UPDATE);
-  ic_down(ix, yy + rh / 2, r, BLACK);
+  row_icon(IC_DOWNLOAD, yy, rh);
   { const char *m = GetDeviceModel(); snprintf(t, sizeof(t), "%s", m && m[0] ? m : ""); }
   cfg_row(yy + rh, rh, 0, "Sobre el dispositiu", t, CR_CHEV, A_CFG_GO, V_ABOUT);
-  ic_info(ix, yy + rh + rh / 2, r, BLACK);
+  row_icon(IC_INFO, yy + rh, rh);
   cfg_row(yy + 2 * rh, rh, 0, "Surt de l'Escriptori", "", CR_NONE, A_EXIT, 0);
-  ic_power(ix, yy + 2 * rh + rh / 2, r, BLACK);
+  row_icon(IC_POWER, yy + 2 * rh, rh);
+}
+/* Control segmentat: n opcions, la triada plena. Cada opció crida act amb el seu índex. */
+static void seg(int x, int y, int w, int h, const char **lab, int n, int cur, int act) {
+  int i, sw = (w - 8) / n;
+  rfill(x, y, w, h, h / 2, PAL(P_TILE));
+  for (i = 0; i < n; i++) {
+    int sx = x + 4 + i * sw;
+    if (i == cur) rfill(sx, y + 4, sw, h - 8, (h - 8) / 2, PAL(P_ACC));
+    SetFont(fBold, i == cur ? PAL(P_ACCFG) : PAL(P_FG)); DrawTextRect(sx + 4, y, sw - 8, h, lab[i], ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
+    add_hit(sx, y, sw, h, act, i);
+  }
+}
+/* ───────────── Aparença ───────────── */
+static void v_look(View *v) {
+  static const char *TH[2] = { "Clar", "Fosc" }, *BGL[3] = { "Cap", "Gris", "Imatge" }, *CO[2] = { "Suau", "Fort" };
+  static const char *HINT[3] = { "Sense fons: blanc net, el que deixa menys rastre a la pantalla.",
+                                 "Gris suau amb targetes blanques.",
+                                 "La primera imatge (JPG o PNG) de la carpeta «Fons» de la memòria, posada per FTP. Les targetes queden a sobre." };
+  int y = TOP, ph = 4 * U + U / 2, rh = 2 * U + U / 2, sh = 2 * U, x2 = SW / 2 - U / 2, w2 = SW - U - U / 2 - x2, yy, i, d = rh - U / 2;
+  time_t now = time(NULL); struct tm *tm = localtime(&now); char t[160];
+  (void)v; cfg_load();
+  header("Aparença", "");
+  ui_card(U / 2, y, SW - U, ph, UI_LINE);                         /* vista prèvia */
+  snprintf(t, sizeof(t), "%d:%02d", tm->tm_hour, tm->tm_min);
+  SetFont(fHuge, PAL(P_FG)); DrawTextRect(U + U / 4, y, 9 * U, ph, t, ALIGN_LEFT | VALIGN_MIDDLE);
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(U * 11, y + U, SW - 12 * U, U + U / 2, "Vista prèvia", ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  SetFont(fText, PAL(P_SUB)); DrawTextRect(U * 11, y + U * 5 / 2, SW - 12 * U, U + U / 2, "Així es veu el text", ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  y += ph + U / 2;
+  ui_card(U / 2, y, SW - U, 5 * rh, UI_LINE);
+  yy = y;
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(U + U / 4, yy, x2 - U, rh, "Tema", ALIGN_LEFT | VALIGN_MIDDLE);
+  seg(x2, yy + (rh - sh) / 2, w2, sh, TH, 2, cfgTheme, A_LOOK_THEME);
+  yy += rh; FillArea(U, yy, SW - 2 * U, 2, PAL(P_LINE));
+  cfg_row(yy, rh, 1, "", cfgFont[0] ? cfgFont : "La del lector", CR_CHEV, A_CFG_GO, V_FONTS);
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(U + U / 4, yy, x2 - U, rh, "Font", ALIGN_LEFT | VALIGN_MIDDLE);
+  yy += rh; FillArea(U, yy, SW - 2 * U, 2, PAL(P_LINE));
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(U + U / 4, yy, x2 - U, rh, "Mida del text", ALIGN_LEFT | VALIGN_MIDDLE);
+  for (i = 0; i < 4; i++) {
+    int bx = SW - U - (4 - i) * (d + U / 4) + U / 4, by = yy + (rh - d) / 2, on = i == cfgSize; ifont *f = OpenFont(DEFAULTFONTB, U * (6 + 2 * i) / 10 + U / 4, 1);
+    rfill(bx, by, d, d, d * 35 / 100, on ? PAL(P_ACC) : PAL(P_TILE));
+    if (f) { SetFont(f, on ? PAL(P_ACCFG) : PAL(P_FG)); DrawTextRect(bx, by, d, d, "A", ALIGN_CENTER | VALIGN_MIDDLE); CloseFont(f); }
+    add_hit(bx - U / 8, yy, d + U / 4, rh, A_LOOK_SIZE, i);
+  }
+  yy += rh; FillArea(U, yy, SW - 2 * U, 2, PAL(P_LINE));
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(U + U / 4, yy, x2 - U, rh, "Fons de l'inici", ALIGN_LEFT | VALIGN_MIDDLE);
+  seg(x2, yy + (rh - sh) / 2, w2, sh, BGL, 3, cfgBg, A_LOOK_BG);
+  yy += rh; FillArea(U, yy, SW - 2 * U, 2, PAL(P_LINE));
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(U + U / 4, yy, x2 - U, rh, "Contrast", ALIGN_LEFT | VALIGN_MIDDLE);
+  seg(x2, yy + (rh - sh) / 2, w2, sh, CO, 2, cfgCon, A_LOOK_CON);
+  y += 5 * rh + U / 2;
+  snprintf(t, sizeof(t), "%s", HINT[cfgBg]);
+  if (cfgBg == 2) { char p[600]; wall_find(p, sizeof(p)); if (!p[0]) snprintf(t, sizeof(t), "La carpeta «Fons» és buida: posa-hi una imatge JPG o PNG per FTP."); }
+  SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U, y, SW - 2 * U, 3 * U, t, ALIGN_LEFT | VALIGN_TOP);
+  y += 3 * U;
+  if (cfgTheme) { SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U, y, SW - 2 * U, 3 * U, "Amb el tema fosc la pantalla deixa més rastre: si cal, fes servir «Neteja la pantalla» o un refresc complet més sovint.", ALIGN_LEFT | VALIGN_TOP); }
+}
+/* ───────────── Tria de font ───────────── */
+static void v_fonts(View *v) {
+  int y = TOP, rh = 3 * U, sampleH = 6 * U, per, i, n, chip = rh - U / 2, top; char sub[100], r[140], b[140]; char **L;
+  fam_scan(); L = EnumFonts();
+  n = nfam + 1;
+  snprintf(sub, sizeof(sub), nfam == 1 ? "%d font · en pots afegir a la carpeta «Fonts»" : "%d fonts · en pots afegir a la carpeta «Fonts»", nfam);
+  header("Font", sub);
+  per = (BOTTOM - sampleH - U / 2 - y) / rh; if (per < 1) per = 1;
+  pages = (n + per - 1) / per; if (v->page >= pages) v->page = pages - 1;
+  top = y;
+  { int cnt = n - v->page * per; if (cnt > per) cnt = per; ui_card(U / 2, y, SW - U, cnt * rh, UI_LINE); }
+  for (i = v->page * per; i < n && i < (v->page + 1) * per; i++) {
+    const char *fam = i == 0 ? "" : famN[i - 1]; int on = !strcmp(fam, cfgFont); ifont *fr, *fb;
+    if (i > v->page * per) FillArea(U, y, SW - 2 * U, 2, PAL(P_LINE));
+    font_names(L, fam, r, b, sizeof(r));
+    fb = OpenFont(b, U * 11 / 10, 1); fr = OpenFont(r, U, 1);
+    rfill(U, y + U / 4, chip, chip, chip * 35 / 100, on ? PAL(P_ACC) : PAL(P_TILE));
+    SetFont(fb ? fb : fBig, on ? PAL(P_ACCFG) : PAL(P_FG)); DrawTextRect(U, y + U / 4, chip, chip, "Aa", ALIGN_CENTER | VALIGN_MIDDLE);
+    SetFont(fr ? fr : fBold, PAL(P_FG)); DrawTextRect(U + chip + U / 2, y + U / 4, SW - 5 * U - chip, rh / 2, i == 0 ? "La del lector" : fam, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U + chip + U / 2, y + rh / 2, SW - 5 * U - chip, rh / 2 - U / 4, i == 0 ? "Per defecte" : famUser[i - 1] ? "Afegida per tu" : "Del lector", ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    if (on) ic_path(IC_CHECK, SW - U - U * 3 / 2, y + (rh - U * 3 / 2) / 2, U * 3 / 2, 2.6, PAL(P_FG), PAL(P_CARD));
+    if (fr) CloseFont(fr);
+    if (fb) CloseFont(fb);
+    add_hit(U / 2, y, SW - U, rh, A_FONT_PICK, i);
+    y += rh;
+  }
+  (void)top;
+  y = BOTTOM - sampleH;                                     /* mostra amb la font triada */
+  rfill(U / 2, y, SW - U, sampleH, U, PAL(P_ACC));
+  { ifont *f1, *f2; font_names(L, cfgFont, r, b, sizeof(r)); f1 = OpenFont(b, U * 3 / 2, 1); f2 = OpenFont(r, U * 9 / 10, 1);
+    SetFont(fSmall, PAL(P_ACCFG)); DrawTextRect(U + U / 4, y + U / 3, SW - 3 * U, U, "MOSTRA", ALIGN_LEFT | VALIGN_MIDDLE);
+    SetFont(f1 ? f1 : fBig, PAL(P_ACCFG)); DrawTextRect(U + U / 4, y + U + U / 3, SW - 3 * U, U * 2, "Bon dia, 12:41", ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    SetFont(f2 ? f2 : fText, PAL(P_ACCFG)); DrawTextRect(U + U / 4, y + 3 * U + U / 3, SW - 3 * U, 2 * U + U / 2, "Jove xef, porti whisky amb quinze glaçons d'hidrogen, coi! 0123456789", ALIGN_LEFT | VALIGN_TOP);
+    if (f1) CloseFont(f1);
+    if (f2) CloseFont(f2); }
 }
 static void v_update(View *v) {
   char t[500]; int y = TOP, bh = 2 * U + U / 2, net = QueryNetwork();
@@ -773,9 +1023,9 @@ static void v_update(View *v) {
   if (!(net & NET_WIFIREADY)) button(U / 2, y, SW - U, bh, "Connecta el Wi-Fi", 0, A_WIFI, 0);
 }
 static void kv(int y, int rh, int first, const char *k, const char *val) {
-  if (!first) FillArea(U, y, SW - 2 * U, 2, LGRAY);
-  SetFont(fBold, BLACK); DrawTextRect(U + U / 4, y, SW * 4 / 10, rh, k, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
-  SetFont(fText, DGRAY); DrawTextRect(SW * 4 / 10, y, SW * 6 / 10 - U - U / 4, rh, val && val[0] ? val : "—", ALIGN_RIGHT | VALIGN_MIDDLE | DOTS);
+  if (!first) FillArea(U, y, SW - 2 * U, 2, PAL(P_LINE));
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(U + U / 4, y, SW * 4 / 10, rh, k, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  SetFont(fText, PAL(P_SUB)); DrawTextRect(SW * 4 / 10, y, SW * 6 / 10 - U - U / 4, rh, val && val[0] ? val : "—", ALIGN_RIGHT | VALIGN_MIDDLE | DOTS);
 }
 static void fmt_gb(char *o, int sz, double bytes) { long t = (long)(bytes / 107374182.4 + 0.5); snprintf(o, (size_t)sz, "%ld,%ld GB", t / 10, t % 10); }
 static void v_about(View *v) {
@@ -783,13 +1033,13 @@ static void v_about(View *v) {
   const char *model = GetDeviceModel(), *serial = GetSerialNumber(), *fw = GetSoftwareVersion();
   (void)v;
   header("Sobre el dispositiu", "");
-  rfill(U / 2, y, SW - U, hh, U, BLACK);                                   /* targeta del lector */
+  rfill(U / 2, y, SW - U, hh, U, PAL(P_ACC));                              /* targeta del lector */
   dh = hh - U; dw = dh * 7 / 10;
-  rcard(U + U / 4, y + U / 2, dw, dh, U / 3, 3, WHITE, BLACK); rcard(U + U / 4 + dw / 8, y + U / 2 + dw / 8, dw - dw / 4, dh - dw / 4 - dh / 6, 3, 3, WHITE, BLACK);
-  FillArea(U + U / 4 + dw * 3 / 8, y + U / 2 + dh - dh / 10, dw / 4, 3, WHITE);
-  SetFont(fHead ? fHead : fTitle, WHITE); DrawTextRect(2 * U + dw, y + U / 2, SW - 4 * U - dw, hh / 2 - U / 4, model && model[0] ? model : "Lector PocketBook", ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  rcard(U + U / 4, y + U / 2, dw, dh, U / 3, 3, PAL(P_ACCFG), PAL(P_ACC)); rcard(U + U / 4 + dw / 8, y + U / 2 + dw / 8, dw - dw / 4, dh - dw / 4 - dh / 6, 3, 3, PAL(P_ACCFG), PAL(P_ACC));
+  FillArea(U + U / 4 + dw * 3 / 8, y + U / 2 + dh - dh / 10, dw / 4, 3, PAL(P_ACCFG));
+  SetFont(fHead ? fHead : fTitle, PAL(P_ACCFG)); DrawTextRect(2 * U + dw, y + U / 2, SW - 4 * U - dw, hh / 2 - U / 4, model && model[0] ? model : "Lector PocketBook", ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
   snprintf(t, sizeof(t), "Escriptori %s · compilació %d", APP_VERNAME, APP_BUILD);
-  SetFont(fText, WHITE); DrawTextRect(2 * U + dw, y + hh / 2 + U / 8, SW - 4 * U - dw, U + U / 2, t, ALIGN_LEFT | VALIGN_TOP | DOTS);
+  SetFont(fText, PAL(P_ACCFG)); DrawTextRect(2 * U + dw, y + hh / 2 + U / 8, SW - 4 * U - dw, U + U / 2, t, ALIGN_LEFT | VALIGN_TOP | DOTS);
   y += hh + g;
   yy = cfg_group(y, "DISPOSITIU", 4, rh);
   kv(yy, rh, 1, "Model", model);
@@ -799,12 +1049,12 @@ static void v_about(View *v) {
   kv(yy + 3 * rh, rh, 0, "Pantalla", t);
   y = yy + 4 * rh + g;
   yy = cfg_group(y, "ESTAT", 3, rh);
-  rcard(U / 2, yy, SW - U, 2 * rh + rh + U / 2, U * 9 / 10, 3, BLACK, WHITE);   /* la primera fila és més alta (barra d'espai) */
+  ui_card(U / 2, yy, SW - U, 2 * rh + rh + U / 2, UI_LINE);   /* la primera fila és més alta (barra d'espai) */
   if (statvfs(FLASHDIR, &sv) == 0 && sv.f_blocks > 0) {
     double tot = (double)sv.f_blocks * (double)sv.f_frsize, fr = (double)sv.f_bavail * (double)sv.f_frsize; int bw = SW - 2 * U - U / 2, used = (int)((tot - fr) / tot * bw);
     fmt_gb(a, sizeof(a), fr); fmt_gb(b, sizeof(b), tot); snprintf(t, sizeof(t), "%s lliures de %s", a, b);
     kv(yy, rh, 1, "Emmagatzematge", t);
-    rcard(U + U / 4, yy + rh - U / 8, bw, U / 2, U / 4, 3, BLACK, WHITE); if (used > 6) rfill(U + U / 4, yy + rh - U / 8, used, U / 2, U / 4, BLACK);
+    rfill(U + U / 4, yy + rh - U / 8, bw, U / 2, U / 4, PAL(P_TILE)); if (used > 6) rfill(U + U / 4, yy + rh - U / 8, used, U / 2, U / 4, PAL(P_FG));
   } else kv(yy, rh, 1, "Emmagatzematge", "");
   yy += rh + U / 2;
   snprintf(t, sizeof(t), "%d%% · %s", batt_pct(), IsCharging() ? "carregant" : "sense carregar");
@@ -835,7 +1085,7 @@ static void render(void) {
   if (v->mod >= nmods) { depth = 1; v = &stack[0]; }
   for (pass = 0; pass < 2; pass++) {
     int before = v->page;
-    ClearScreen(); nhits = 0; pages = 1; footY = SH - NAVH - U / 4;
+    ClearScreen(); FillArea(0, 0, SW, SH, PAL(P_BG)); nhits = 0; pages = 1; footY = SH - NAVH - U / 4; wallOn = 0;
     statusbar(1);
     if (v->mod >= 0) mods[v->mod].m->fn_draw(v);
     else switch (v->type) {
@@ -846,14 +1096,17 @@ static void render(void) {
       case V_UPDATE: v_update(v); break;
       case V_ABOUT: v_about(v); break;
       case V_FAVS: v_favs(v); break;
+      case V_LOOK: v_look(v); break;
+      case V_FONTS: v_fonts(v); break;
       case V_QUICK: v_quick(v); break;
       case V_HOME: v_home(v); break;
       case V_AVISOS: v_avisos(v); break;
     }
     if (v->page < 0) v->page = 0;
-    footer(v->page);
+    if (!(v->mod < 0 && v->type == V_DESK)) footer(v->page);
     if (v->page == before) break;
   }
+  if (escDark) InvertArea(0, 0, SW, SH);
 }
 static void draw(int full) {
   static int nfull;
@@ -871,7 +1124,7 @@ static int desk_tick(void) {
     render();
     if (oN != sbN) lay = 1;
     for (i = 0; i < 40 && !lay; i++) if (oX[i] != sbX[i] || oW[i] != sbW[i]) lay = 1;
-    if (lay) { x0 = sbR0; x1 = SW; }
+    if (lay) { x0 = 0; x1 = SW; }
     else for (i = 0; i < NSYS; i++) if (oS[i] != sbSig[i] && sbW[i] > 0) { if (sbX[i] - 3 < x0) x0 = sbX[i] - 3; if (sbX[i] + sbW[i] + 3 > x1) x1 = sbX[i] + sbW[i] + 3; }
     if (x1 > x0) PartialUpdate(x0 < 0 ? 0 : x0, 0, (x1 > SW ? SW : x1) - (x0 < 0 ? 0 : x0), SB); }
   if (homeHasClock && homeRectH > 0) PartialUpdate(0, homeRectY, SW, homeRectH);
@@ -896,6 +1149,7 @@ static void open_module(int i) {
   nv = push_view(i, 0, 0, 0, 0, NULL);
   if (mods[i].m->fn_open) mods[i].m->fn_open(nv);
 }
+static void host_fonts(void) { host.fTitle = fTitle; host.fBold = fBold; host.fText = fText; host.fSmall = fSmall; host.fBig = fBig; host.fHuge = fHuge; }
 static void act(int a, int arg) {
   View *v = &stack[depth - 1];
   static char msg[200];
@@ -946,6 +1200,17 @@ static void act(int a, int arg) {
     } break;
     case A_STORE_FILTER: v->a = arg; v->page = 0; draw(0); break;
     case A_ABOUT_UPD: upd_check(); push_view(-1, V_UPDATE, 0, 0, 0, NULL); draw(1); break;
+    case A_LOOK_THEME: cfgTheme = arg == 1; cfg_save(); theme_apply(); draw(2); break;
+    case A_LOOK_CON: cfgCon = arg == 1; cfg_save(); theme_apply(); draw(2); break;
+    case A_LOOK_BG: cfgBg = arg < 0 ? 0 : arg > 2 ? 2 : arg; if (cfgBg == 2) mkdir(WALLDIR, 0777); cfg_save(); theme_apply(); draw(2); break;
+    case A_LOOK_SIZE: cfgSize = arg < 0 ? 0 : arg > 3 ? 3 : arg; cfg_save(); fonts_apply(); host_fonts(); draw(2); break;
+    case A_FONT_PICK:
+      if (arg < 0 || arg > nfam) break;
+      snprintf(cfgFont, sizeof(cfgFont), "%s", arg == 0 ? "" : famN[arg - 1]);
+      cfg_save(); fonts_apply(); host_fonts(); draw(2);
+      break;
+    case A_DESK_PREV: if (v->page > 0) { v->page--; draw(0); } break;
+    case A_DESK_NEXT: if (v->page < pages - 1) { v->page++; draw(0); } break;
     case A_QUICK: if (!(v->mod < 0 && v->type == V_QUICK)) { push_view(-1, V_QUICK, 0, 0, 0, NULL); draw(1); } break;
     case A_WIDGET:
       if (arg < 0 || arg >= nwl) break;
@@ -979,11 +1244,9 @@ static int handler(int type, int par1, int par2) {
       SW = ScreenWidth(); SH = ScreenHeight(); U = SW / 27; if (U < 16) U = 16; SB = U * 9 / 4;
       SetPanelType(PANEL_DISABLED);
       SH -= PanelHeight();
-      fTitle = OpenFont(DEFAULTFONTB, U * 11 / 10, 1); fBold = OpenFont(DEFAULTFONTB, U * 9 / 10, 1);
-      fText = OpenFont(DEFAULTFONT, U * 9 / 10, 1); fSmall = OpenFont(DEFAULTFONT, U * 7 / 10, 1); fBig = OpenFont(DEFAULTFONTB, U * 12 / 10, 1); fHuge = OpenFont(DEFAULTFONTB, U * 3, 1);
-      fHead = OpenFont(DEFAULTFONTB, U * 14 / 10, 1); fClock = OpenFont(DEFAULTFONTB, U * 9 / 2, 1);
+      cfg_load(); theme_apply(); fonts_apply();
       host.api = ESC_API; host.SW = SW; host.SH = SH; host.U = U; host.SB = SB;
-      host.fTitle = fTitle; host.fBold = fBold; host.fText = fText; host.fSmall = fSmall; host.fBig = fBig; host.fHuge = fHuge;
+      host_fonts(); host.pal = escPal; host.icon_fg = PAL(P_FG); host.icon_bg = PAL(P_CARD); host.update = upd_region;
       host.pages = &pages; host.add_hit = add_hit; host.button = button; host.header = header; host.redraw = draw; host.push = h_push; host.pop = h_pop;
       host.say = say; host.ask = ask; host.confirm = confirm; host.net_get = net_get_t; host.notify = avisos_add; host.status_changed = sb_refresh; host.front = h_front; host.on_unload = h_on_unload;
       depth = 1; memset(&stack[0], 0, sizeof(View)); stack[0].type = V_DESK; stack[0].mod = -1;

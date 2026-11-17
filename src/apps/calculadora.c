@@ -49,12 +49,7 @@ static void v_calc(View *v) {
   for (i = 0; i < 20; i++) button(U / 2 + (i % 4) * (bw + gap), y0 + (i / 4) * (bh + gap), bw, bh, CKEYS[i], i == 19, A_CALC, i);
 }
 
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s), i, j;
-  ol(x + s / 4, y + s / 8, s / 2, s * 3 / 4, s / 10, t);
-  FillArea(x + s * 3 / 8, y + s * 9 / 32, s / 4, t, BLACK);
-  for (i = 0; i < 2; i++) for (j = 0; j < 3; j++) disc(x + s * 3 / 8 + j * (s / 8), y + s * 15 / 32 + i * (s * 5 / 32), t * 2 / 3 + 1, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_CALC, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_CALC: v_calc(v); break;

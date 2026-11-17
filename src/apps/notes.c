@@ -80,11 +80,7 @@ static void on_note_del(int btn) {
   draw(1);
 }
 
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s), i;
-  ol(x + s / 4, y + s / 8, s / 2, s * 3 / 4, s / 12, t);
-  for (i = 0; i < 3; i++) FillArea(x + s * 3 / 8, y + s * 5 / 16 + i * (s * 5 / 32), s / 4, t * 2 / 3 + 1, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_NOTE, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_NOTES: v_notes(v); break;

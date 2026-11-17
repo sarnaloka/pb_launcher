@@ -267,10 +267,7 @@ static void w_today(int x, int y, int w, int h) {
   ui_lv(x, y, w, h, lab, t);
 }
 static const Widget WG[] = { { "avui", "El temps d'avui", 2, 1, w_today } };
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s);
-  ring(x + s / 2, y + s / 2, s / 6, t); rays(x + s / 2, y + s / 2, s / 6 + t + 2, s * 3 / 8, t);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_SUN, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_WEATHER: v_weather(v); break;

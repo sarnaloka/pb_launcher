@@ -1,11 +1,19 @@
 import sys
 from PIL import Image, ImageDraw, ImageFont
-def font(size,bold): return ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf' if bold else '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', max(6,int(size*0.86)))
+from PIL import ImageOps
+def font(size,bold):
+    serif=bold&2; bold=bold&1
+    n='DejaVuSerif' if serif else 'DejaVuSans'
+    return ImageFont.truetype('/usr/share/fonts/truetype/dejavu/%s%s.ttf'%(n,'-Bold' if bold else ''), max(6,int(size*0.86)))
 for name in sys.argv[1:]:
     im=Image.new('L',(1072,1448),255); d=ImageDraw.Draw(im)
     for ln in open(name,encoding='utf8'):
         k,x,y,w,h,color,size,bold,flags,text=ln.rstrip('\n').split('\t',9); x,y,w,h,color,size,bold,flags=map(int,(x,y,w,h,color,size,bold,flags))
-        g=0 if color==0 else (170 if color==0xaaaaaa else (85 if color==0x555555 else 255))
+        g=(((color>>16)&255)*299+((color>>8)&255)*587+(color&255)*114)//1000
+        if k=='B': im.paste(Image.frombytes('L',(w,h),bytes.fromhex(text)),(x,y)); continue
+        if k=='I':
+            if w>0 and h>0: box=(max(0,x),max(0,y),min(1072,x+w),min(1448,y+h)); im.paste(ImageOps.invert(im.crop(box)),box[:2])
+            continue
         if k=='F': d.rectangle([x,y,x+w-1,y+h-1],fill=g)
         elif k=='R': d.rectangle([x,y,x+w-1,y+h-1],outline=g)
         elif k=='L': d.line([x,y,w,h],fill=g)
@@ -30,7 +38,8 @@ for name in sys.argv[1:]:
                 if flags&512:
                     while d.textlength(t,font=f)>w and len(t)>1: t=t[:-2]+'…'
                 tw=d.textlength(t,font=f); tx=x if flags&1 else (x+(w-tw)/2 if flags&2 else x+w-tw)
-                if flags&32 and len(lines)==1: ty=y+(h-size)/2
+                if flags&64 and len(lines)==1: ty=y+h-size*1.12
+                elif flags&32 and len(lines)==1: ty=y+(h-size)/2
                 else: ty=y+n*lh
                 d.text((tx,ty),t,font=f,fill=g)
     im.save(name.replace('.txt','.png'))

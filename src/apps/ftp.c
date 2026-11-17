@@ -305,8 +305,8 @@ static int my_ip(char *out, int sz) {
 
 /* ───────────── pantalla ───────────── */
 static void kvrow(int y, int rh, int first, const char *k, const char *v, int big) {
-  if (!first) FillArea(U, y, SW - 2 * U, 2, LGRAY);
-  SetFont(fText, DGRAY); DrawTextRect(U + U / 4, y, SW / 3, rh, k, ALIGN_LEFT | VALIGN_MIDDLE);
+  if (!first) FillArea(U, y, SW - 2 * U, 2, PAL(P_LINE));
+  SetFont(fText, PAL(P_SUB)); DrawTextRect(U + U / 4, y, SW / 3, rh, k, ALIGN_LEFT | VALIGN_MIDDLE);
   SetFont(big ? fBig : fBold, BLACK); DrawTextRect(SW / 3, y, SW * 2 / 3 - U - U / 4, rh, v, ALIGN_RIGHT | VALIGN_MIDDLE | DOTS);
 }
 static void v_ftp(View *v) {
@@ -329,7 +329,7 @@ static void v_ftp(View *v) {
   }
   SetFont(fSmall, DGRAY); DrawTextRect(U, y, SW - 2 * U, U + U / 4, "CONNEXIÓ", ALIGN_LEFT | VALIGN_MIDDLE);
   y += U + U / 4;
-  rcard(U / 2, y, SW - U, 4 * rh, U * 9 / 10, 3, BLACK, WHITE);
+  ui_card(U / 2, y, SW - U, 4 * rh, UI_LINE);
   if (srv >= 0 && my_ip(ip, sizeof(ip))) snprintf(t, sizeof(t), "%s", ip); else snprintf(t, sizeof(t), "%s", srv >= 0 ? "no trobada" : "—");
   kvrow(y, rh, 1, "Servidor", t, 1);
   snprintf(t, sizeof(t), "%d", FPORT); kvrow(y + rh, rh, 0, "Port", t, 0);
@@ -360,15 +360,7 @@ static void pin_new(void) {
   for (i = 0; i < MAXS; i++) sess_close(&ss[i]);                 /* qui estava connectat ha de tornar a entrar */
   ftp_log("%s", "Contrasenya nova");
 }
-static void mod_icon(int x, int y, int s) {      /* carpeta amb una fletxa amunt i una avall */
-  int t = ic_t(s), a = s / 9;
-  ol(x + s / 6, y + s / 5, s / 3, s / 4, s / 14, t);
-  ol(x + s / 6, y + s * 5 / 16, s * 2 / 3, s * 15 / 32, s / 12, t);
-  thick(x + s * 13 / 32, y + s * 7 / 16, x + s * 13 / 32, y + s * 21 / 32, t, BLACK);
-  thick(x + s * 13 / 32, y + s * 7 / 16, x + s * 13 / 32 - a, y + s * 7 / 16 + a, t, BLACK); thick(x + s * 13 / 32, y + s * 7 / 16, x + s * 13 / 32 + a, y + s * 7 / 16 + a, t, BLACK);
-  thick(x + s * 19 / 32, y + s * 7 / 16, x + s * 19 / 32, y + s * 21 / 32, t, BLACK);
-  thick(x + s * 19 / 32, y + s * 21 / 32, x + s * 19 / 32 - a, y + s * 21 / 32 - a, t, BLACK); thick(x + s * 19 / 32, y + s * 21 / 32, x + s * 19 / 32 + a, y + s * 21 / 32 - a, t, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_FTP, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) { v_ftp(v); }
 static void mod_action(View *v, int a, int arg) {
   (void)v; (void)arg;
@@ -385,13 +377,13 @@ static void mod_open(View *v) {
   if (wantSrv && (QueryNetwork() & NET_WIFIREADY)) srv_start();      /* abans de dibuixar, perquè la barra ja el mostri */
 }
 /* Ranura de la barra d'estat: mentre el servidor és engegat, una fletxa doble; amb fitxers nous, també el nombre. */
-static int si_w(int h) { char t[12]; if (srv < 0) return 0; if (unseen <= 0) return h * 3 / 10; snprintf(t, sizeof(t), "%d", unseen > 99 ? 99 : unseen); SetFont(fSmall, WHITE); return h * 3 / 10 + U / 4 + StringWidth(t); }
+/* Ranura de la barra d'estat: icona I × I (I = 0,55·h) i, si cal, un número. */
+static int si_w(int h) { char t[12]; int I = h * 55 / 100; if (!(srv >= 0)) return 0; if (!(unseen > 0)) return I; snprintf(t, sizeof(t), "%d", unseen > 99 ? 99 : unseen); SetFont(fSmall, BLACK); return I + U / 6 + StringWidth(t); }
 static void si_d(int x, int y, int w, int h, int fg) {
-  int ih = h * 42 / 100, cy = y + h / 2, a = ih / 4, t = 3, x1 = x + h * 3 / 10 / 4, x2 = x + h * 3 / 10 * 3 / 4; char tx[12];
+  char t[12]; int I = h * 55 / 100;
   (void)w;
-  thick(x1, cy - ih / 2, x1, cy + ih / 2, t, fg); thick(x1, cy - ih / 2, x1 - a, cy - ih / 2 + a, t, fg); thick(x1, cy - ih / 2, x1 + a, cy - ih / 2 + a, t, fg);
-  thick(x2, cy - ih / 2, x2, cy + ih / 2, t, fg); thick(x2, cy + ih / 2, x2 - a, cy + ih / 2 - a, t, fg); thick(x2, cy + ih / 2, x2 + a, cy + ih / 2 - a, t, fg);
-  if (unseen > 0) { snprintf(tx, sizeof(tx), "%d", unseen > 99 ? 99 : unseen); SetFont(fSmall, fg); DrawTextRect(x + h * 3 / 10 + U / 4, y, StringWidth(tx) + 2, h, tx, ALIGN_LEFT | VALIGN_MIDDLE); }
+  ic_path(IC_UPDOWN, x, y + (h - I) / 2, I, 2.0, fg, SB_BG);
+  if (unseen > 0) { snprintf(t, sizeof(t), "%d", unseen > 99 ? 99 : unseen); SetFont(fSmall, fg); DrawTextRect(x + I + U / 6, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE); }
 }
 static const StatusItem SI[1] = { { "servidor", si_w, si_d } };
 static Module M = { ESC_API_MIN, "ftp", "FTP", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 1, SI, 0, NULL };

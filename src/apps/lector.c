@@ -1076,11 +1076,7 @@ static void v_toc(View *v) {
     y += rh;
   }
 }
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s), w = s * 5 / 16 + t / 2;
-  ol(x + s * 3 / 16, y + s / 4, w, s / 2, s / 16, t); ol(x + s / 2 - t / 2, y + s / 4, w, s / 2, s / 16, t);
-  FillArea(x + s * 9 / 32, y + s * 13 / 32, s / 8, t * 2 / 3 + 1, BLACK); FillArea(x + s * 19 / 32, y + s * 13 / 32, s / 8, t * 2 / 3 + 1, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_BOOK, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_LIB: v_lib(v); break;

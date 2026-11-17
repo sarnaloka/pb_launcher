@@ -7,7 +7,7 @@
 #include <time.h>
 #include <limits.h>
 #include <sys/stat.h>
-typedef struct ifont_s { int size, bold; } ifont;
+typedef struct ifont_s { int size, bold, serif; char name[80]; } ifont;
 typedef int (*iv_handler)(int type, int par1, int par2);
 typedef void (*iv_keyboardhandler)(char *text);
 typedef void (*iv_dialoghandler)(int button);
@@ -48,11 +48,18 @@ void SetWeakTimer(const char *name, iv_timerproc tp, int ms); void ClearTimer(iv
 #define ALIGN_RIGHT 4
 #define VALIGN_TOP 16
 #define VALIGN_MIDDLE 32
+#define VALIGN_BOTTOM 64
 #define DOTS 512
 #define DEFAULTFONT "regular"
 #define DEFAULTFONTB "bold"
 void InkViewMain(iv_handler h); void CloseApp(void); int ScreenWidth(void); int ScreenHeight(void);
 void ClearScreen(void); void DrawLine(int, int, int, int, int); void DrawRect(int, int, int, int, int); void FillArea(int, int, int, int, int);
+typedef struct ibitmap_s { unsigned short width, height, depth, scanline; unsigned char data[]; } ibitmap;
+void DrawBitmap(int x, int y, const ibitmap *b); void DrawPixel(int x, int y, int c); void InvertArea(int x, int y, int w, int h);
+char **EnumFonts(void); void CloseFont(ifont *f);
+ibitmap *LoadJPEG(const char *path, int w, int h, int br, int co, int proportional); ibitmap *LoadPNGStretch(const char *path, int w, int h, int proportional, int dither);
+void DitherArea(int x, int y, int w, int h, int levels, int method);
+#define USERFONTDIR FLASHDIR "/system/fonts"
 ifont *OpenFont(const char *name, int size, int aa); void SetFont(const ifont *f, int color);
 char *DrawTextRect(int x, int y, int w, int h, const char *s, int flags); int StringWidth(const char *s);
 void FullUpdate(void); void SoftUpdate(void);

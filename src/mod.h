@@ -11,7 +11,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#define ESC_API 4                  /* 3 = Host.notify i status_changed; 4 = Host.front i on_unload. Els paquets declaren ESC_API_MIN i comproven H->api */
+#define ESC_API 5                  /* 3 = notify, status_changed; 4 = front, on_unload; 5 = paleta (temes), icon_fg/bg, update. Els paquets declaren ESC_API_MIN i comproven H->api */
 #define ESC_API_MIN 2
 #define MOD_TICK 1                 /* el paquet vol redibuixar-se cada minut */
 #define NOTELEN 400
@@ -39,9 +39,13 @@ typedef struct Host {
   /* només si host->api >= 4 */
   const char *(*front)(void);                                            /* id del paquet que es veu ara mateix («» si és una pantalla del sistema) */
   void (*on_unload)(const char *id, void (*fn)(void));                   /* fn es crida abans de descarregar el paquet: atura-hi temporitzadors i tanca-hi connexions */
+  /* només si host->api >= 5 */
+  const int *pal;                                                        /* paleta del tema (P_BG, P_CARD...): fes-la servir amb PAL(i) */
+  int icon_fg, icon_bg;                                                  /* colors amb què el sistema vol la icona del paquet (ICON_FG, ICON_BG) */
+  void (*update)(int x, int y, int w, int h);                            /* actualització parcial (amb el tema fosc, inverteix la zona abans) */
 } Host;
 /* Ranura de la barra d'estat: un indicador petit. width() retorna l'amplada en píxels (0 = ara no es mostra);
-   draw() el dibuixa dins el rectangle x,y,w,h amb el color fg. La barra és NEGRA: fg és blanc i el fons, negre (rcard(..., fg, BLACK)).
+   draw() el dibuixa dins el rectangle x,y,w,h amb el color fg sobre el fons PAL(P_BG) (des de l'API 5; abans, la barra era negra).
    Per quedar alineat amb la resta, centra'l verticalment i fes-lo d'una alçada d'uns 2/5 de h. S'avalua a cada refresc: ha de ser barat. */
 typedef struct StatusItem { const char *id; int (*width)(int h); void (*draw)(int x, int y, int w, int h, int fg); } StatusItem;
 /* Widget de l'escriptori. cw = columnes que ocupa (2 o 4 de 4); ch = alçada en unitats de 3U. El sistema dibuixa la
@@ -59,6 +63,24 @@ typedef struct Module {
 } Module;
 
 #define UNUSED __attribute__((unused))
+/* ───────────── paleta ─────────────
+   Colors del tema. En tema fosc el sistema dona una paleta «invertida» i inverteix la pantalla en acabar de dibuixar:
+   així també canvien el BLACK i el WHITE que fan servir els paquets. Fes servir PAL(P_...) per a fons, targetes i textos
+   secundaris; BLACK i WHITE continuen servint per al text principal i per al text sobre P_ACC. */
+enum { P_BG, P_CARD, P_SHADOW, P_FG, P_SUB, P_TILE, P_LINE, P_ACC, P_ACCFG, P_N };
+static UNUSED const int PAL_DEF[P_N] = { 0xE5E5E5, 0xFFFFFF, 0xC8C8C8, 0x111111, 0x666666, 0xEEEEEE, 0xDDDDDD, 0x111111, 0xFFFFFF };
+#ifdef ESC_MODULE
+static const Host *H;
+#define PAL(i) ((H && H->api >= 5 && H->pal) ? H->pal[i] : PAL_DEF[i])
+#define ICON_FG ((H && H->api >= 5) ? H->icon_fg : BLACK)
+#define ICON_BG ((H && H->api >= 5) ? H->icon_bg : WHITE)
+#define SB_BG ((H && H->api >= 5) ? PAL(P_BG) : BLACK)   /* fons de la barra d'estat (negra abans de l'API 5) */
+#else
+static int escPal[P_N] = { 0xE5E5E5, 0xFFFFFF, 0xC8C8C8, 0x111111, 0x666666, 0xEEEEEE, 0xDDDDDD, 0x111111, 0xFFFFFF };
+static int ICON_FG = BLACK, ICON_BG = WHITE;
+#define PAL(i) (escPal[i])
+#define SB_BG PAL(P_BG)
+#endif
 /* ───────────── sistema de disseny ─────────────
    Formes simples sobre fons blanc: targetes de cantonades arrodonides, icones de línia pròpies. */
 static UNUSED void rfill(int x, int y, int w, int h, int r, int col) {
@@ -74,17 +96,22 @@ static UNUSED void rfill(int x, int y, int w, int h, int r, int col) {
     FillArea(x + inset, y + h - 1 - k, w - 2 * inset, 1, col);
   }
 }
-static UNUSED int ui_r(int w, int h) { int m = w < h ? w : h, r = m / 4; return r < 3 ? 3 : r > 40 ? 40 : r; }
+static UNUSED int ui_r(int w, int h) { int m = w < h ? w : h, r = m * 34 / 100; return r < 3 ? 3 : r > 48 ? 48 : r; }
 /* t = gruix de la vora (0 = sense vora), fg = color de la vora, bg = color de l'interior */
 static UNUSED void rcard(int x, int y, int w, int h, int r, int t, int fg, int bg) {
   rfill(x, y, w, h, r, fg);
   if (t > 0) rfill(x + t, y + t, w - 2 * t, h - 2 * t, r > t ? r - t : 0, bg);
 }
 enum { UI_LINE, UI_SOFT, UI_SOLID };
+/* Targeta: UI_LINE = blanca amb ombra (o amb vora fina si el fons també és blanc); UI_SOFT = gris clar, plana;
+   UI_SOLID = color d'accent (negre en tema clar). */
 static UNUSED void ui_card(int x, int y, int w, int h, int style) {
-  int r = ui_r(w, h);
-  if (style == UI_SOLID) rcard(x, y, w, h, r, 0, BLACK, BLACK);
-  else rcard(x, y, w, h, r, 3, style == UI_SOFT ? LGRAY : BLACK, WHITE);
+  int r = ui_r(w, h), sh = h > 60 ? 6 : 4;
+  if (style == UI_SOLID) { rfill(x, y, w, h, r, PAL(P_ACC)); return; }
+  if (style == UI_SOFT) { rfill(x, y, w, h, r, PAL(P_TILE)); return; }
+  if (PAL(P_BG) == PAL(P_CARD)) { rcard(x, y, w, h, r, 3, PAL(P_LINE), PAL(P_CARD)); return; }
+  rfill(x, y + sh, w, h, r, PAL(P_SHADOW));
+  rfill(x, y, w, h, r, PAL(P_CARD));
 }
 static UNUSED void box(int x, int y, int w, int h) { ui_card(x, y, w, h, UI_LINE); }
 static UNUSED void disc(int cx, int cy, int r, int col) {
@@ -97,6 +124,7 @@ static UNUSED void thick(int x1, int y1, int x2, int y2, int t, int col) {
   for (i = 0; i <= n; i++) FillArea(x1 + dx * i / n - t / 2, y1 + dy * i / n - t / 2, t, t, col);
 }
 
+#include "gfx.h"                      /* icones de traç SVG del prototip (ic_path) */
 /* Icones de les aplicacions: totes de línia amb el mateix gruix. ic_t(s) = gruix per a una icona de mida s;
    ol() = rectangle arrodonit de contorn; ring() = anella. Es dibuixen en negre sobre fons blanc. */
 static UNUSED int ic_t(int s) { return s / 14 > 3 ? s / 14 : 3; }
@@ -182,7 +210,6 @@ static UNUSED void ic_arrow(int cx, int y, int h, int down, int col) {
 }
 
 #ifdef ESC_MODULE
-static const Host *H;
 #define SW (H->SW)
 #define SH (H->SH)
 #define U (H->U)
@@ -206,6 +233,9 @@ static const Host *H;
 #define TOP (SB + 3 * U + U / 2)
 #define NAVH (2 * U + U / 4)
 #define BOTTOM (SH - NAVH - U / 2)
+/* Les actualitzacions parcials dels paquets passen pel sistema (tema fosc). */
+static UNUSED void esc_update(int x, int y, int w, int h) { if (H->api >= 5 && H->update) H->update(x, y, w, h); else PartialUpdate(x, y, w, h); }
+#define PartialUpdate esc_update
 static UNUSED char *net_get(const char *url, int *len) { return H->net_get(url, len, 25); }
 static UNUSED const char *WDAY[7] = { "diumenge", "dilluns", "dimarts", "dimecres", "dijous", "divendres", "dissabte" };
 static UNUSED const char *MONTH[12] = { "de gener", "de febrer", "de març", "d'abril", "de maig", "de juny", "de juliol", "d'agost", "de setembre", "d'octubre", "de novembre", "de desembre" };

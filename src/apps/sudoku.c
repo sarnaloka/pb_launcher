@@ -88,12 +88,7 @@ static void v_sudoku(View *v) {
   y += bh + U / 3; bw = (SW - U - U / 3) / 2;
   button(U / 2, y, bw, bh, "Comprova", 0, A_SU_CHECK, 0); button(U / 2 + bw + U / 3, y, bw, bh, "Sudoku nou", 0, A_SU_NEW, 0);
 }
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s), a = s * 2 / 3, tt = t * 2 / 3 + 1;
-  ol(x + s / 6, y + s / 6, a, a, s / 10, t);
-  FillArea(x + s / 6 + a / 3, y + s / 6, tt, a, BLACK); FillArea(x + s / 6 + a * 2 / 3, y + s / 6, tt, a, BLACK);
-  FillArea(x + s / 6, y + s / 6 + a / 3, a, tt, BLACK); FillArea(x + s / 6, y + s / 6 + a * 2 / 3, a, tt, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_SUDOKU, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_SUDOKU: v_sudoku(v); break;

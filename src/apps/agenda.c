@@ -91,12 +91,7 @@ static void w_next(int x, int y, int w, int h) {
   ui_lv(x, y, w, h, "Agenda · proper esdeveniment", t);
 }
 static const Widget WG[] = { { "proper", "Proper esdeveniment", 4, 1, w_next } };
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s);
-  ol(x + s / 6, y + s / 5, s * 2 / 3, s * 3 / 5, s / 10, t);
-  FillArea(x + s / 6, y + s * 3 / 8, s * 2 / 3, t, BLACK);
-  FillArea(x + s / 3 - t / 2, y + s / 8, t, s / 6, BLACK); FillArea(x + s * 2 / 3 - t / 2, y + s / 8, t, s / 6, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_AGENDA, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_AGENDA: v_agenda(v); break;

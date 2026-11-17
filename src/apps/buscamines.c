@@ -59,10 +59,7 @@ static void v_mines(View *v) {
   button(U / 2, y, bw, bh, miFlagMode ? "Mode: bandera" : "Mode: destapar", miFlagMode, A_MI_MODE, 0);
   button(U / 2 + bw + U / 3, y, bw, bh, "Joc nou", 0, A_MI_NEW, 0);
 }
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s);
-  ring(x + s / 2, y + s / 2, s / 5, t); rays(x + s / 2, y + s / 2, s / 5 + t, s * 3 / 8, t);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_MINES, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_MINES: v_mines(v); break;

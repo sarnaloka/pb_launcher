@@ -28,11 +28,7 @@ static void v_clock(View *v) {
   }
 }
 
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s);
-  ring(x + s / 2, y + s / 2, s * 5 / 16, t);
-  thick(x + s / 2, y + s / 2, x + s / 2, y + s * 5 / 16, t, BLACK); thick(x + s / 2, y + s / 2, x + s * 5 / 8, y + s * 9 / 16, t, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_CLOCK, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_CLOCK: v_clock(v); break;

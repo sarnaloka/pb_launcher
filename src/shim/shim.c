@@ -1,22 +1,54 @@
 #include <unistd.h>
+#include <dirent.h>
+#include <strings.h>
 #include "inkview.h"
 #include "afm.h"
-typedef struct { char kind; int x, y, w, h, color, size, bold, flags; char text[700]; } Op;
+typedef struct { char kind; int x, y, w, h, color, size, bold, flags; char text[700]; char *data; } Op;
 static Op ops[40000]; static int nops; static const ifont *cur; static int curColor; static iv_handler H; static char pendingKbd[100];
 static int updates; static int dlgBtn = 2;
 int ScreenWidth(void) { return 1072; } int ScreenHeight(void) { return 1448; }
-void ClearScreen(void) { nops = 0; }
+void ClearScreen(void) { int i; for (i = 0; i < nops; i++) { free(ops[i].data); ops[i].data = NULL; } nops = 0; }
 static Op *add(char k, int x, int y, int w, int h, int color) { Op *o; if (nops >= 40000) { fprintf(stderr, "too many ops\n"); exit(2); } o = &ops[nops++]; memset(o, 0, sizeof(*o)); o->kind = k; o->x = x; o->y = y; o->w = w; o->h = h; o->color = color; return o; }
 void DrawLine(int x1, int y1, int x2, int y2, int c) { add('L', x1, y1, x2, y2, c); }
 void DrawRect(int x, int y, int w, int h, int c) { add('R', x, y, w, h, c); }
 void FillArea(int x, int y, int w, int h, int c) { add('F', x, y, w, h, c); }
-ifont *OpenFont(const char *name, int size, int aa) { ifont *f = malloc(sizeof(ifont)); (void)aa; f->size = size; f->bold = strstr(name, "old") != NULL; return f; }
+ifont *OpenFont(const char *name, int size, int aa) { ifont *f = calloc(1, sizeof(ifont)); (void)aa; f->size = size; f->bold = strstr(name, "old") != NULL; f->serif = strstr(name, "Serif") || strstr(name, "Literata") || strstr(name, "Georgia"); snprintf(f->name, sizeof(f->name), "%s", name); return f; }
+void CloseFont(ifont *f) { free(f); }
+/* Fonts del simulador: unes quantes de fixes més les de flash/system/fonts. */
+char **EnumFonts(void) {
+  static char *list[64]; static char store[64][80]; int n = 0, i; DIR *d; struct dirent *e;
+  static const char *FIX[] = { "LiberationSans", "LiberationSans-Bold", "LiberationSans-Italic", "LiberationSerif", "LiberationSerif-Bold", "DejaVuSans", "DejaVuSans-Bold", "DejaVuSerif", "DejaVuSerif-Bold" };
+  for (i = 0; i < 9; i++) { snprintf(store[n], 80, "%s", FIX[i]); list[n] = store[n]; n++; }
+  if ((d = opendir(USERFONTDIR))) { while ((e = readdir(d)) && n < 62) { char *dot = strrchr(e->d_name, '.'); if (!dot || (strcasecmp(dot, ".ttf") && strcasecmp(dot, ".otf"))) continue; snprintf(store[n], 80, "%.*s", (int)(dot - e->d_name), e->d_name); list[n] = store[n]; n++; } closedir(d); }
+  list[n] = NULL; return list;
+}
+static Op *add(char k, int x, int y, int w, int h, int color);
+void DrawBitmap(int x, int y, const ibitmap *b) {
+  Op *o = add('B', x, y, b->width, b->height, 0); int i, j; static const char *hx = "0123456789abcdef";
+  o->data = malloc((size_t)b->width * b->height * 2 + 1);
+  for (j = 0; j < b->height; j++) for (i = 0; i < b->width; i++) { unsigned char v = b->data[j * b->scanline + i]; o->data[(j * b->width + i) * 2] = hx[v >> 4]; o->data[(j * b->width + i) * 2 + 1] = hx[v & 15]; }
+  o->data[(size_t)b->width * b->height * 2] = 0;
+}
+void DrawPixel(int x, int y, int c) { add('F', x, y, 1, 1, c); }
+void InvertArea(int x, int y, int w, int h) { add('I', x, y, w, h, 0); }
+void DitherArea(int x, int y, int w, int h, int levels, int method) { (void)x; (void)y; (void)w; (void)h; (void)levels; (void)method; }
+/* Imatges: el simulador no descodifica; si el fitxer existeix, torna un degradat de la mida demanada. */
+static ibitmap *fake_img(const char *path, int w, int h) {
+  FILE *f = fopen(path, "rb"); ibitmap *b; int i, j;
+  if (!f) return NULL;
+  fclose(f);
+  b = malloc(sizeof(ibitmap) + (size_t)w * h); b->width = w; b->height = h; b->depth = 8; b->scanline = w;
+  for (j = 0; j < h; j++) for (i = 0; i < w; i++) b->data[j * w + i] = (unsigned char)(90 + 120 * (i + j) / (w + h));
+  return b;
+}
+ibitmap *LoadJPEG(const char *path, int w, int h, int br, int co, int proportional) { (void)br; (void)co; (void)proportional; return fake_img(path, w, h); }
+ibitmap *LoadPNGStretch(const char *path, int w, int h, int proportional, int dither) { (void)proportional; (void)dither; return fake_img(path, w, h); }
 void SetFont(const ifont *f, int color) { cur = f; curColor = color; }
 int StringWidth(const char *s) { const unsigned char *p = (const unsigned char *)s; double w = 0; const unsigned short *W = cur->bold ? W_BOLD : W_REG;
   while (*p) { int c = *p++; if (c >= 0xC0) { while ((*p & 0xC0) == 0x80) p++; c = 'e'; } w += W[c - 32 < 0 ? 0 : c - 32]; } return (int)(w * cur->size / 1000.0 + 0.5); }
 char *DrawTextRect(int x, int y, int w, int h, const char *s, int flags) { Op *o;
   if (w <= 0 || h <= 0) { fprintf(stderr, "BAD RECT %d %d %d %d '%s'\n", x, y, w, h, s); }
-  o = add('T', x, y, w, h, curColor); o->size = cur->size; o->bold = cur->bold; o->flags = flags; snprintf(o->text, sizeof(o->text), "%s", s); { char *q; for (q = o->text; *q; q++) if (*q == '\n' || *q == '\t') *q = ' '; } return NULL; }
+  o = add('T', x, y, w, h, curColor); o->size = cur->size; o->bold = cur->bold | (cur->serif ? 2 : 0); o->flags = flags; snprintf(o->text, sizeof(o->text), "%s", s); { char *q; for (q = o->text; *q; q++) if (*q == '\n' || *q == '\t') *q = ' '; } return NULL; }
 void FullUpdate(void) { updates++; } void SoftUpdate(void) { updates++; }
 char *GetDeviceModel(void) { return "PocketBook Verse Pro (sim)"; } char *GetSerialNumber(void) { return "SIM-0000"; } char *GetSoftwareVersion(void) { return "simulador"; }
 static int simBatt = 62, simChg, simNet = -1, simSig = 3;
@@ -39,7 +71,7 @@ void OpenKeyboard(const char *title, char *buffer, int maxlen, int flags, iv_key
 void Message(int icon, const char *title, const char *text, int timeout) { (void)icon; (void)timeout; printf("MESSAGE %s: %s\n", title, text); }
 void Dialog(int icon, const char *title, const char *text, const char *b1, const char *b2, iv_dialoghandler hp) { (void)icon; printf("DIALOG %s: %s [%s|%s]\n", title, text, b1, b2); hp(dlgBtn); }
 int OpenBook(const char *path, const char *p, int f) { (void)p; (void)f; printf("OpenBook %s\n", path); return 1; }
-static void shot(const char *name) { FILE *f = fopen(name, "w"); int i; for (i = 0; i < nops; i++) { Op *o = &ops[i]; fprintf(f, "%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", o->kind, o->x, o->y, o->w, o->h, o->color, o->size, o->bold, o->flags, o->text); } fclose(f); }
+static void shot(const char *name) { FILE *f = fopen(name, "w"); int i; for (i = 0; i < nops; i++) { Op *o = &ops[i]; fprintf(f, "%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", o->kind, o->x, o->y, o->w, o->h, o->color, o->size, o->bold, o->flags, o->data ? o->data : o->text); } fclose(f); }
 void InkViewMain(iv_handler h) { char ln[300]; H = h; h(EVT_INIT, 0, 0); h(EVT_SHOW, 0, 0);
   while (fgets(ln, sizeof(ln), stdin)) { char *nl = strchr(ln, '\n'); int i, x, y; if (nl) *nl = 0;
     if (!strncmp(ln, "tapp ", 5)) {          /* com «tap», però passa pàgina (fins a 5 cops) si no ho troba */

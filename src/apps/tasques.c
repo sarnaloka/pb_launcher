@@ -38,20 +38,17 @@ static void w_pending(int x, int y, int w, int h) {
   if (n == 0) snprintf(t, sizeof(t), "Cap de pendent"); else snprintf(t, sizeof(t), n == 1 ? "%d pendent" : "%d pendents", n);
   ui_lv(x, y, w, h, "Tasques", t);
 }
-static int si_w(int h) { int n = todo_pending(); char t[16]; (void)h; if (!n) return 0; snprintf(t, sizeof(t), "%d", n); SetFont(fSmall, WHITE); return h * 35 / 100 + U / 4 + StringWidth(t); }
+/* Ranura de la barra d'estat: icona I × I (I = 0,55·h) i, si cal, un número. */
+static int si_w(int h) { char t[12]; int I = h * 55 / 100; if (!(todo_pending() > 0)) return 0; if (!(1)) return I; snprintf(t, sizeof(t), "%d", todo_pending() > 99 ? 99 : todo_pending()); SetFont(fSmall, BLACK); return I + U / 6 + StringWidth(t); }
 static void si_d(int x, int y, int w, int h, int fg) {
-  int n = todo_pending(), sz = h * 35 / 100; char t[16]; (void)w;
-  snprintf(t, sizeof(t), "%d", n);
-  rcard(x, y + (h - sz) / 2, sz, sz, 4, 2, fg, BLACK); ic_check(x + sz / 2, y + h / 2, sz * 4 / 10, fg);
-  SetFont(fSmall, fg); DrawTextRect(x + sz + U / 4, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
+  char t[12]; int I = h * 55 / 100;
+  (void)w;
+  ic_path(IC_TASKS, x, y + (h - I) / 2, I, 2.0, fg, SB_BG);
+  if (1) { snprintf(t, sizeof(t), "%d", todo_pending() > 99 ? 99 : todo_pending()); SetFont(fSmall, fg); DrawTextRect(x + I + U / 6, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE); }
 }
 static const StatusItem SI[] = { { "pendents", si_w, si_d } };
 static const Widget WG[] = { { "pendents", "Tasques pendents", 2, 1, w_pending } };
-static void mod_icon(int x, int y, int s) {      /* icona de línia, mateix gruix que la resta (ic_t) */
-  int t = ic_t(s);
-  ol(x + s / 5, y + s / 5, s * 3 / 5, s * 3 / 5, s / 7, t);
-  thick(x + s * 11 / 32, y + s / 2, x + s * 15 / 32, y + s * 5 / 8, t, BLACK); thick(x + s * 15 / 32, y + s * 5 / 8, x + s * 21 / 32, y + s * 3 / 8, t, BLACK);
-}
+static void mod_icon(int x, int y, int s) { ic_path(IC_TASKS, x, y, s, 1.8, ICON_FG, ICON_BG); }   /* icona del prototip (icons.h) */
 static void mod_draw(View *v) {
   switch (v->type) {
     case V_TODO: v_todo(v); break;
