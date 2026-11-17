@@ -147,7 +147,7 @@ static int handle(int fd) {
   return got;
 }
 static void xat_poll(void);
-static void srv_stop(void) { ClearTimer(xat_poll); if (srv >= 0) close(srv); srv = -1; }
+static void srv_stop(void) { if (srv >= 0 && H->api >= 6 && H->busy) H->busy("xat", NULL); ClearTimer(xat_poll); if (srv >= 0) close(srv); srv = -1; }
 static void srv_start(void) {
   struct sockaddr_in a; int s, one = 1;
   if (srv >= 0 || H->api < 4) return;
@@ -158,6 +158,7 @@ static void srv_start(void) {
   if (bind(s, (struct sockaddr *)&a, sizeof(a)) < 0 || listen(s, 8) < 0 || fcntl(s, F_SETFL, O_NONBLOCK) < 0) { close(s); return; }
   srv = s;
   SetWeakTimer("xat_poll", xat_poll, 700);
+  if (H->api >= 6 && H->busy) H->busy("xat", "servidor web al port 8080");
 }
 static void on_unload(void) { srv_stop(); free(msgs); msgs = NULL; loaded = 0; }
 /* Cada 0,7 s: atén les connexions pendents. Si arriba un missatge i el xat es veu, el redibuixa; si no, deixa un avís. */

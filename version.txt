@@ -1,5 +1,5 @@
 9
-170052
-164fe044
+206984
+5910351b
 Versió 2.2: interfície nova amb icones noves, tema clar o fosc, tria de font i mida del text, i fons de l'inici (Configuració › Aparença). Després d'actualitzar, surt i torna a obrir l'Escriptori, i actualitza tots els paquets.
 2.2

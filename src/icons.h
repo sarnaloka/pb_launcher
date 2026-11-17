@@ -24,6 +24,10 @@
 #define IC_TASKS       "M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM8 12l3 3 5-6"
 #define IC_PACKAGE     "M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5"
 #define IC_UPDOWN      "M8 18V6M5 9l3-3 3 3M16 6v12M13 15l3 3 3-3"
+#define IC_CLOSE       "M6 6l12 12M18 6L6 18"
+#define IC_APPS        "M9 9h10v10H9zM5 15V5h10"
+#define IC_SPLIT       "M5 4h14a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM5 13h14a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z"
+#define IC_PULSE       "M3 12h4l3-7 4 14 3-7h4"
 #define IC_SLIDERS     "M5 7h8M17 7h2M5 17h2M11 17h8M15 5v4M9 15v4"
 
 /* sistema */

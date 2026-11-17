@@ -1,4 +1,5 @@
 /* Escriptori — sistema base: escriptori, barra d'estat, gestor de paquets i actualització. */
+#define _GNU_SOURCE                      /* dladdr */
 #include "mod.h"
 #include <dlfcn.h>
 #include <sys/statvfs.h>
@@ -10,13 +11,15 @@
 #define SYSDIR FLASHDIR "/system/escriptori"
 #define PKGDIR SYSDIR "/packages"
 
-enum { V_DESK, V_STORE, V_PKG, V_SYSTEM, V_QUICK, V_HOME, V_AVISOS, V_UPDATE, V_ABOUT, V_FAVS, V_LOOK, V_FONTS };   /* V_SYSTEM = Configuració */
+enum { V_DESK, V_STORE, V_PKG, V_SYSTEM, V_QUICK, V_HOME, V_AVISOS, V_UPDATE, V_ABOUT, V_FAVS, V_LOOK, V_FONTS, V_JOBS, V_OPEN, V_SPLIT, V_SPLITPICK, V_MON };   /* V_SYSTEM = Configuració */
 enum { A_NONE, A_BACK, A_HOME, A_PREV, A_NEXT, A_EXIT, A_APP, A_STORE_REFRESH, A_STORE_ALL, A_PKG, A_PKG_INSTALL, A_PKG_REMOVE,
        A_UPD_CHECK, A_UPD_INSTALL, A_WIFI,
        A_QUICK, A_WIDGET, A_QWIFI, A_QLIGHT_DN, A_QLIGHT_UP, A_QCLEAN, A_QGO, A_HE_TOGGLE, A_HE_UP, A_HE_DN, A_AVISOS, A_AV_ONE, A_AV_READ, A_AV_CLEAR,
        A_CFG_GO, A_CFG_FULL, A_FAV_TOGGLE, A_STORE_FILTER, A_ABOUT_UPD,
-       A_LOOK_THEME, A_LOOK_SIZE, A_LOOK_BG, A_LOOK_CON, A_FONT_PICK, A_DESK_PREV, A_DESK_NEXT };          /* les accions dels paquets comencen a 100 */
-typedef struct { int x, y, w, h, act, arg; } Hit;
+       A_LOOK_THEME, A_LOOK_SIZE, A_LOOK_BG, A_LOOK_CON, A_FONT_PICK, A_DESK_PREV, A_DESK_NEXT,
+       A_JOB_CANCEL, A_SYNC_TOGGLE, A_SYNC_CHARGE, A_SYNC_NOW, A_OPEN, A_OPEN_CLOSE, A_OPEN_ALL, A_OPEN_SPLIT,
+       A_SPLIT_SWAP, A_SPLIT_SIZE, A_SPLIT_CLOSE, A_PICK_TOP, A_PICK_BOT, A_PICK_GO, A_MON_STOP, A_MON_REFRESH };          /* les accions dels paquets comencen a 100 */
+typedef struct { int x, y, w, h, act, arg, pane; } Hit;   /* pane: panell de la pantalla dividida (-1 = cap) */
 #define MAXSTACK 24
 #define MAXHITS 400
 static View stack[MAXSTACK];
@@ -38,7 +41,7 @@ static void say(const char *m) { pendMsg = m; }
 /* ───────────── aparença: ajustos, tema, fonts i fons ─────────────
    system/config/escriptori_config.txt: refresc, tema (0 clar, 1 fosc), mida (0..3), fons (0 cap, 1 gris, 2 imatge),
    contrast (0 suau, 1 fort) i font (família; buit = la del lector). */
-static int cfgFull = 1, cfgLoaded, cfgTheme, cfgSize = 1, cfgBg = 1, cfgCon;
+static int cfgFull = 1, cfgLoaded, cfgTheme, cfgSize = 1, cfgBg = 1, cfgCon, cfgCharge;   /* cfgCharge: sincronitza només carregant */
 static char cfgFont[80];
 static void cfg_load(void) {
   FILE *f; char ln[160];
@@ -54,13 +57,14 @@ static void cfg_load(void) {
     else if (!strncmp(ln, "fons=", 5)) { cfgBg = atoi(ln + 5); if (cfgBg < 0 || cfgBg > 2) cfgBg = 1; }
     else if (!strncmp(ln, "contrast=", 9)) cfgCon = atoi(ln + 9) == 1;
     else if (!strncmp(ln, "font=", 5)) snprintf(cfgFont, sizeof(cfgFont), "%s", ln + 5);
+    else if (!strncmp(ln, "nomescarregant=", 15)) cfgCharge = atoi(ln + 15) == 1;
   }
   fclose(f);
 }
 static void cfg_save(void) {
   FILE *f = fopen(CFG "escriptori_config.txt", "w");
   if (!f) return;
-  fprintf(f, "refresc=%d\ntema=%d\nmida=%d\nfons=%d\ncontrast=%d\nfont=%s\n", cfgFull, cfgTheme, cfgSize, cfgBg, cfgCon, cfgFont);
+  fprintf(f, "refresc=%d\ntema=%d\nmida=%d\nfons=%d\ncontrast=%d\nfont=%s\nnomescarregant=%d\n", cfgFull, cfgTheme, cfgSize, cfgBg, cfgCon, cfgFont, cfgCharge);
   fclose(f);
 }
 /* Paleta del tema (valors que es veuen). En fosc es desa invertida a escPal i la pantalla s'inverteix en acabar de
@@ -204,10 +208,11 @@ static void desk_text(int x, int y, int w, int h, const char *t, ifont *f, int c
 static void seg(int x, int y, int w, int h, const char **lab, int n, int cur, int act);
 static int sb_on_desk(void) { return depth >= 1 && stack[depth - 1].mod < 0 && stack[depth - 1].type == V_DESK; }
 /* Actualització parcial (també per als paquets): amb el tema fosc s'inverteix abans la zona redibuixada. */
-static void upd_region(int x, int y, int w, int h) { if (escDark) InvertArea(x, y, w, h); PartialUpdate(x, y, w, h); }
+static void upd_region(int x, int y, int w, int h) { if (escDark) InvertArea(x, y, w, h); PartialUpdate(x, y + escOY, w, h); }
+#include "jobs.h"
 
 /* ───────────── paquets carregats ───────────── */
-typedef struct { void *dl; Module *m; char id[48]; } Loaded;
+typedef struct { void *dl; Module *m; char id[48]; int split; } Loaded;   /* split: el paquet exporta escriptori_split */
 #define MAXMODS 64
 static Loaded mods[MAXMODS]; static int nmods;
 static Host host;
@@ -224,7 +229,7 @@ static int mod_load(const char *id) {
   if (!m || m->api < ESC_API_MIN || m->api > ESC_API || !m->fn_draw || !m->name) { dlclose(dl); return -2; }
   drop_module_views();
   for (i = nmods; i > 0 && strcasecmp(mods[i - 1].m->name, m->name) > 0; i--) mods[i] = mods[i - 1];
-  mods[i].dl = dl; mods[i].m = m; snprintf(mods[i].id, sizeof(mods[i].id), "%s", id);
+  mods[i].dl = dl; mods[i].m = m; snprintf(mods[i].id, sizeof(mods[i].id), "%s", id); mods[i].split = dlsym(dl, "escriptori_split") != NULL;
   nmods++;
   return 0;
 }
@@ -236,11 +241,17 @@ static void h_on_unload(const char *id, void (*fn)(void)) {
   for (k = 0; k < nunl; k++) if (!strcmp(unl[k].id, id)) { unl[k].fn = fn; return; }
   if (nunl < 16) { snprintf(unl[nunl].id, sizeof(unl[nunl].id), "%s", id); unl[nunl].fn = fn; nunl++; }
 }
+static void open_forget(int m);
+static void jobs_drop_owner(const char *id);
+static void bg_unregister(const char *id);
+static void h_busy(const char *id, const char *state);
 static void mod_unload(int i) {
   int k;
   if (i < 0 || i >= nmods) return;
   drop_module_views();
+  open_forget(i);
   for (k = 0; k < nunl; k++) if (!strcmp(unl[k].id, mods[i].id)) { unl[k].fn(); unl[k] = unl[nunl - 1]; nunl--; break; }
+  jobs_drop_owner(mods[i].id); bg_unregister(mods[i].id); h_busy(mods[i].id, NULL);
   dlclose(mods[i].dl);
   memmove(&mods[i], &mods[i + 1], sizeof(Loaded) * (size_t)(nmods - i - 1));
   nmods--;
@@ -267,6 +278,105 @@ static void mods_scan(void) {
     mod_load(id);
   }
   closedir(d);
+}
+/* ───────────── apps obertes ─────────────
+   En tornar a l'inici des d'una app, se'n desa la pila de vistes i una miniatura de la pantalla; en tornar-la a obrir,
+   continua on era. L'estat intern del paquet ja es conserva sol (el paquet continua carregat). Es desa pel nom del
+   paquet, no per la posició a mods[], perquè la taula es reordena quan s'instal·la un paquet. */
+#define MAXOPEN 8
+typedef struct { char id[48]; View v[12]; int n; long t; ibitmap *thumb; } OpenApp;
+static OpenApp opened[MAXOPEN]; static int nOpen;
+static ibitmap *pendThumb; static char pendThumbId[48];
+static int open_count(void) { return nOpen; }
+static int open_find(const char *id) { int i; for (i = 0; i < nOpen; i++) if (!strcmp(opened[i].id, id)) return i; return -1; }
+static void open_drop(int k) { if (k < 0 || k >= nOpen) return; free(opened[k].thumb); memmove(&opened[k], &opened[k + 1], sizeof(OpenApp) * (size_t)(nOpen - k - 1)); nOpen--; }
+static void open_forget(int m) { int k; if (m < 0 || m >= nmods) return; while ((k = open_find(mods[m].id)) >= 0) open_drop(k); if (!strcmp(pendThumbId, mods[m].id)) { free(pendThumb); pendThumb = NULL; pendThumbId[0] = 0; } }
+/* Miniatura d'1/3 de la pantalla (sota la barra) de l'app que es veu ara. */
+static void thumb_capture(void) {
+  View *v = &stack[depth - 1]; ibitmap *b; int tw, th, x, y;
+  if (v->mod < 0 || v->mod >= nmods) return;
+  b = BitmapFromScreen(0, SB, SW, SH - SB);
+  free(pendThumb); pendThumb = NULL; pendThumbId[0] = 0;
+  if (!b) return;
+  if (b->depth != 8) { free(b); return; }
+  tw = SW / 3; th = (SH - SB) / 3;
+  pendThumb = (ibitmap *)malloc(sizeof(ibitmap) + (size_t)tw * th);
+  if (pendThumb) {
+    pendThumb->width = (unsigned short)tw; pendThumb->height = (unsigned short)th; pendThumb->depth = 8; pendThumb->scanline = (unsigned short)tw;
+    for (y = 0; y < th; y++) for (x = 0; x < tw; x++) {
+      int sum = 0, a, c;
+      for (a = 0; a < 3; a++) for (c = 0; c < 3; c++) sum += b->data[(y * 3 + a) * b->scanline + x * 3 + c];
+      pendThumb->data[y * tw + x] = (unsigned char)(escDark ? 255 - sum / 9 : sum / 9);   /* en fosc es desa «sense invertir» */
+    }
+    snprintf(pendThumbId, sizeof(pendThumbId), "%s", mods[v->mod].id);
+  }
+  free(b);
+}
+/* Desa l'app que hi ha a la pila (la primera vista de paquet i les següents del mateix paquet). */
+static void open_save_current(void) {
+  int k, m, n = 0, slot; View tmp[12];
+  for (k = 0; k < depth && stack[k].mod < 0; k++) {}
+  if (k >= depth) return;
+  m = stack[k].mod;
+  if (m < 0 || m >= nmods) return;
+  for (; k < depth && n < 12; k++) if (stack[k].mod == m) tmp[n++] = stack[k];
+  slot = open_find(mods[m].id);
+  if (slot < 0) {
+    if (nOpen == MAXOPEN) { int old = 0, i; for (i = 1; i < nOpen; i++) if (opened[i].t < opened[old].t) old = i; open_drop(old); }
+    slot = nOpen++; memset(&opened[slot], 0, sizeof(OpenApp));
+  }
+  snprintf(opened[slot].id, sizeof(opened[slot].id), "%s", mods[m].id);
+  memcpy(opened[slot].v, tmp, sizeof(View) * (size_t)n); opened[slot].n = n; opened[slot].t = (long)time(NULL);
+  if (pendThumb && !strcmp(pendThumbId, mods[m].id)) { free(opened[slot].thumb); opened[slot].thumb = pendThumb; pendThumb = NULL; pendThumbId[0] = 0; }
+}
+/* Torna a una app oberta: n'empila les vistes desades. 1 si n'hi havia. */
+static int open_resume(int m) {
+  int k = open_find(mods[m].id), i;
+  if (k < 0) return 0;
+  for (i = 0; i < opened[k].n && depth < MAXSTACK; i++) { stack[depth] = opened[k].v[i]; stack[depth].mod = m; depth++; }
+  open_drop(k);
+  return 1;
+}
+/* ───────────── pantalla dividida ─────────────
+   Dues apps, cadascuna amb la seva pila de vistes. Per dibuixar o atendre un panell, el sistema hi «entra»: SB = 0,
+   SH = alçada del panell i escOY/host.oy = posició; les macros de dibuix de mod.h hi sumen el desplaçament, així el
+   paquet no canvia. Només hi entren els paquets que exporten «escriptori_split». */
+static char splitId[2][48]; static View splitSt[2][12]; static int splitN[2], splitRatio, paneLast;
+static int scrSB, scrSH;                                  /* barra i alçada reals de la pantalla */
+static int pickTop = -1, pickBot = -1;
+static int ctxPages, ctxFootY;
+static void split_geom(int p, int *y, int *h) {
+  int top = scrSB + U / 4, bar = 2 * U + U / 2, avail = scrSH - top - bar - U / 4, hA;
+  hA = splitRatio == 0 ? avail / 2 : splitRatio == 1 ? avail * 2 / 3 : avail / 3;
+  if (p == 0) { *y = top; *h = hA; } else { *y = top + hA + bar; *h = avail - hA; }
+}
+static void pane_enter(int p) {
+  int y, h; split_geom(p, &y, &h);
+  ctxPages = pages; ctxFootY = footY;
+  inPane = p; escOY = y; SB = 0; SH = h; host.oy = y; host.SB = 0; host.SH = h; pages = 1; footY = SH - NAVH - U / 4;
+  SetClip(0, y, SW, h);
+}
+static void pane_leave(void) {
+  SB = scrSB; SH = scrSH; host.SB = SB; host.SH = SH; host.oy = 0; escOY = 0; pages = ctxPages; footY = ctxFootY; inPane = -1;
+  SetClip(0, 0, SW, SH);
+}
+static int split_on(void) { return depth > 1 && stack[depth - 1].mod < 0 && stack[depth - 1].type == V_SPLIT; }
+/* Desa a «apps obertes» l'app d'un panell. */
+static void split_save(int p) {
+  int m = mod_find(splitId[p]), slot;
+  if (m < 0 || !splitN[p]) return;
+  slot = open_find(splitId[p]);
+  if (slot < 0) { if (nOpen == MAXOPEN) open_drop(0); slot = nOpen++; memset(&opened[slot], 0, sizeof(OpenApp)); }
+  snprintf(opened[slot].id, sizeof(opened[slot].id), "%s", splitId[p]);
+  memcpy(opened[slot].v, splitSt[p], sizeof(View) * (size_t)splitN[p]); opened[slot].n = splitN[p]; opened[slot].t = (long)time(NULL);
+}
+/* Prepara un panell amb l'app m: si era oberta, continua on era. */
+static void split_fill(int p, int m) {
+  int k = open_find(mods[m].id);
+  snprintf(splitId[p], sizeof(splitId[p]), "%s", mods[m].id);
+  if (k >= 0) { memcpy(splitSt[p], opened[k].v, sizeof(View) * (size_t)opened[k].n); splitN[p] = opened[k].n; open_drop(k); return; }
+  memset(&splitSt[p][0], 0, sizeof(View)); splitSt[p][0].mod = m; splitN[p] = 1;
+  if (mods[m].m->fn_open) { pane_enter(p); mods[m].m->fn_open(&splitSt[p][0]); pane_leave(); }
 }
 
 /* ───────────── catàleg i instal·lació ───────────── */
@@ -320,32 +430,68 @@ static int write_file(const char *path, const char *data, long len) {
   return 0;
 }
 static void pkg_notify(void);
-static int store_refresh(void) {
-  char url[300], *b; int len = 0;
-  snprintf(url, sizeof(url), UPD_BASE "packages/index.txt?t=%ld&r=%d", (long)time(NULL), rand());
-  b = net_get_t(url, &len, 25);
-  if (!b) return -1;
-  if (!strchr(b, '|')) { free(b); return -2; }
-  mkdir(SYSDIR, 0777); mkdir(PKGDIR, 0777);
-  write_file(PKGDIR "/index.txt", b, len);
-  free(b);
-  cat_load();
-  pkg_notify();
-  return 0;
+static int pkg_install_data(const Pkg *q, char *b, int len);
+/* Catàleg: arg = 1 si és la sincronització automàtica (sense missatges). */
+static void store_refresh_done(Job *j) {
+  int rc = -1;
+  if (j->data && j->len > 0) {
+    if (!strchr(j->data, '|')) rc = -2;
+    else { mkdir(SYSDIR, 0777); mkdir(PKGDIR, 0777); write_file(PKGDIR "/index.txt", j->data, j->len); cat_load(); pkg_notify(); rc = 0; }
+  }
+  if (rc && !j->arg) say(rc == -1 ? "No s'ha pogut baixar el catàleg. Comprova el Wi-Fi." : "El catàleg del servidor no és vàlid.");
 }
-/* 0 correcte; -1 xarxa; -2 la descàrrega no quadra; -3 no es pot desar; -4 no es pot carregar */
-static int pkg_install(const Pkg *q) {
-  char url[300], path[700], ver[32], *b; int len = 0, i;
+static void store_refresh(int quiet) {
+  char url[300];
+  snprintf(url, sizeof(url), UPD_BASE "packages/index.txt?t=%ld&r=%d", (long)time(NULL), rand());
+  jobs_add(url, "Catàleg de paquets", "", 25, store_refresh_done, quiet, NULL, NULL);
+}
+/* Instal·lacions: es fan a la cua; en acabar un lot, un sol missatge. */
+static int instPend, instOk, instBad, instLast;
+static int job_find_url_key(const char *key) {
+  int i, r = -1;
+  pthread_mutex_lock(&jm);
+  for (i = 0; i < MAXJOBS; i++) if ((jobs[i].state == J_QUEUED || jobs[i].state == J_RUNNING) && !strcmp(jobs[i].owner, "@inst") && strstr(jobs[i].url, key)) { r = i; break; }
+  pthread_mutex_unlock(&jm);
+  return r;
+}
+static const char *pkg_err(int rc);
+static void pkg_install_done(Job *j) {
+  int i, rc = -1;
+  const char *id = j->title + 0;
+  (void)id;
+  for (i = 0; i < ncat; i++) {
+    char key[80]; snprintf(key, sizeof(key), "packages/%s.pkg?", cat[i].id);
+    if (strstr(j->url, key)) { rc = j->data ? pkg_install_data(&cat[i], j->data, j->len) : -1; break; }
+  }
+  if (rc == 0) instOk++; else { instBad++; instLast = rc; }
+  if (instPend > 0) instPend--;
+  if (instPend == 0) {
+    static char msg[160];
+    if (instOk + instBad > 1) { snprintf(msg, sizeof(msg), instBad ? "S'han instal·lat %d paquets; %d han fallat." : "S'han instal·lat %d paquets.", instOk, instBad); say(msg); }
+    else if (instBad) say(pkg_err(instLast));
+    instOk = instBad = 0;
+  }
+}
+static int pkg_queued(const Pkg *q) { char key[80]; snprintf(key, sizeof(key), "packages/%s.pkg?", q->id); return job_find_url_key(key) >= 0; }
+/* counted: el lot ja s'ha comptat abans (Instal·la-ho tot), perquè el missatge final surti un sol cop */
+static void pkg_install_c(const Pkg *q, int counted) {
+  char url[300], t[100];
+  if (pkg_queued(q)) { if (counted && instPend > 0) instPend--; return; }   /* ja és a la cua */
   snprintf(url, sizeof(url), UPD_BASE "packages/%s.pkg?t=%ld&r=%d", q->id, (long)time(NULL), rand());
-  b = net_get_t(url, &len, 180);
-  if (!b) return -1;
-  if ((long)len != q->size || crc32_buf((const unsigned char *)b, len) != q->crc || len < 1000 || memcmp(b, "\177ELF", 4)) { free(b); return -2; }
+  snprintf(t, sizeof(t), "%s · versió %d", q->name, q->ver);
+  if (!counted) instPend++;
+  jobs_add(url, t, "@inst", 180, pkg_install_done, 0, NULL, NULL);
+}
+static void pkg_install(const Pkg *q) { pkg_install_c(q, 0); }
+/* 0 correcte; -1 xarxa; -2 la descàrrega no quadra; -3 no es pot desar; -4 no es pot carregar */
+static int pkg_install_data(const Pkg *q, char *b, int len) {
+  char path[700], ver[32]; int i;
+  if ((long)len != q->size || crc32_buf((const unsigned char *)b, len) != q->crc || len < 1000 || memcmp(b, "\177ELF", 4)) return -2;
   mkdir(SYSDIR, 0777); mkdir(PKGDIR, 0777);
   i = mod_find(q->id);
   if (i >= 0) mod_unload(i);
   snprintf(path, sizeof(path), PKGDIR "/%s.pkg", q->id);
-  if (write_file(path, b, len) != 0) { free(b); mod_load(q->id); return -3; }
-  free(b);
+  if (write_file(path, b, len) != 0) { mod_load(q->id); return -3; }
   chmod(path, 0755);
   snprintf(ver, sizeof(ver), "%d\n", q->ver);
   snprintf(path, sizeof(path), PKGDIR "/%s.ver", q->id);
@@ -381,36 +527,109 @@ static int updState;            /* 0 sense comprovar, 1 al dia, 2 hi ha versió 
 static int updBuild; static long updSize; static unsigned long updCrc; static char updNotes[300], updName[32], selfPath[600];
 /* version.txt: 1 compilació, 2 mida, 3 CRC32 hex, 4 novetats, 5 nom de la versió */
 static void avisos_add(const char *src, const char *title, const char *text);
-static void upd_check(void) {
-  char url[300], *b, *l[5]; int k;
-  snprintf(url, sizeof(url), UPD_BASE "version.txt?t=%ld&r=%d", (long)time(NULL), rand());
-  b = net_get_t(url, NULL, 25);
+static void upd_check_done(Job *j) {
+  char *b = j->data, *l[5]; int k;
   updState = -1; updNotes[0] = 0; updName[0] = 0;
-  if (!b) { say("No s'ha pogut consultar la versió. Comprova el Wi-Fi."); return; }
+  if (!b) { if (!j->arg) say("No s'ha pogut consultar la versió. Comprova el Wi-Fi."); return; }
   l[0] = b;
   for (k = 1; k < 5; k++) { l[k] = l[k - 1] ? strchr(l[k - 1], '\n') : NULL; if (l[k]) *l[k]++ = 0; }
   updBuild = atoi(l[0]);
-  if (updBuild <= 0 || !l[1] || !l[2]) { free(b); say("La informació de versió del servidor no és vàlida."); return; }
+  if (updBuild <= 0 || !l[1] || !l[2]) { if (!j->arg) say("La informació de versió del servidor no és vàlida."); return; }
   updSize = atol(l[1]); updCrc = strtoul(l[2], NULL, 16);
   if (l[3]) { snprintf(updNotes, sizeof(updNotes), "%s", l[3]); updNotes[strcspn(updNotes, "\r\n")] = 0; }
   if (l[4]) { snprintf(updName, sizeof(updName), "%s", l[4]); updName[strcspn(updName, "\r\n")] = 0; }
   if (!updName[0]) snprintf(updName, sizeof(updName), "%d", updBuild);
-  free(b);
   updState = updBuild > APP_BUILD ? 2 : 1;
   if (updState == 2) { char t[120]; snprintf(t, sizeof(t), "Versió %s", updName); avisos_add("Sistema", "Actualització disponible", t); }
 }
-static void upd_install(void) {
-  char url[300], *b; int len = 0;
-  snprintf(url, sizeof(url), UPD_BASE "Escriptori.app?t=%ld&r=%d", (long)time(NULL), rand());
-  b = net_get_t(url, &len, 180);
+static void upd_check_q(int quiet) {
+  char url[300];
+  snprintf(url, sizeof(url), UPD_BASE "version.txt?t=%ld&r=%d", (long)time(NULL), rand());
+  jobs_add(url, "Versió de l'Escriptori", "", 25, upd_check_done, quiet, NULL, NULL);
+}
+static void upd_check(void) { upd_check_q(0); }
+static void upd_install_done(Job *j) {
+  char *b = j->data; int len = j->len;
   if (!b) { say("No s'ha pogut descarregar l'actualització."); return; }
   if ((long)len != updSize || crc32_buf((const unsigned char *)b, len) != updCrc || len < 20000 || memcmp(b, "\177ELF", 4)) {
-    free(b); say("La descàrrega no coincideix amb la versió publicada. No s'ha canviat res."); return;
+    say("La descàrrega no coincideix amb la versió publicada. No s'ha canviat res."); return;
   }
-  if (write_file(selfPath, b, len) != 0) { free(b); say("No s'ha pogut substituir l'aplicació. No s'ha canviat res."); return; }
-  free(b);
+  if (write_file(selfPath, b, len) != 0) { say("No s'ha pogut substituir l'aplicació. No s'ha canviat res."); return; }
   chmod(selfPath, 0755);
   updState = 3;
+}
+static void upd_install(void) {
+  char url[300], t[80];
+  snprintf(url, sizeof(url), UPD_BASE "Escriptori.app?t=%ld&r=%d", (long)time(NULL), rand());
+  snprintf(t, sizeof(t), "Escriptori %s", updName);
+  jobs_add(url, t, "", 180, upd_install_done, 0, NULL, NULL);
+}
+
+/* ───────────── sincronització automàtica ─────────────
+   Cada tasca (el catàleg del sistema i les que registren els paquets amb Host.bg_register) té un interval. Cada minut,
+   si el Wi-Fi ja està connectat (no es desperta mai sol) i, si cal, el lector carrega, es llancen les que toquen.
+   system/config/escriptori_sync.txt: «id|activa|darrera vegada». */
+typedef struct { char id[48], title[64]; int every, on; long last; void (*start)(void); } BgTask;
+#define MAXBG 16
+static BgTask bgt[MAXBG]; static int nbg, bgLoaded;
+static struct { char id[48]; int on; long last; } bgSaved[MAXBG]; static int nbgSaved;
+static void bg_save(void) {
+  FILE *f = fopen(CFG "escriptori_sync.txt", "w"); int i;
+  if (!f) return;
+  for (i = 0; i < nbg; i++) fprintf(f, "%s|%d|%ld\n", bgt[i].id, bgt[i].on, bgt[i].last);
+  for (i = 0; i < nbgSaved; i++) { int k, dup = 0; for (k = 0; k < nbg; k++) if (!strcmp(bgt[k].id, bgSaved[i].id)) dup = 1; if (!dup) fprintf(f, "%s|%d|%ld\n", bgSaved[i].id, bgSaved[i].on, bgSaved[i].last); }
+  fclose(f);
+}
+static void bg_load(void) {
+  FILE *f; char ln[160];
+  if (bgLoaded) return;
+  bgLoaded = 1;
+  if (!(f = fopen(CFG "escriptori_sync.txt", "r"))) return;
+  while (nbgSaved < MAXBG && fgets(ln, sizeof(ln), f)) {
+    char *a = strchr(ln, '|'), *b2 = a ? strchr(a + 1, '|') : NULL;
+    if (!a || !b2) continue;
+    *a = 0; snprintf(bgSaved[nbgSaved].id, sizeof(bgSaved[0].id), "%s", ln); bgSaved[nbgSaved].on = atoi(a + 1); bgSaved[nbgSaved].last = atol(b2 + 1); nbgSaved++;
+  }
+  fclose(f);
+}
+static void bg_register(const char *id, const char *title, int every, void (*start)(void)) {
+  int i;
+  if (!id || !start) return;
+  bg_load();
+  for (i = 0; i < nbg && strcmp(bgt[i].id, id); i++) {}
+  if (i == nbg) { if (nbg >= MAXBG) return; nbg++; memset(&bgt[i], 0, sizeof(BgTask)); bgt[i].on = 1; { int k; for (k = 0; k < nbgSaved; k++) if (!strcmp(bgSaved[k].id, id)) { bgt[i].on = bgSaved[k].on; bgt[i].last = bgSaved[k].last; } } }
+  snprintf(bgt[i].id, sizeof(bgt[i].id), "%s", id); snprintf(bgt[i].title, sizeof(bgt[i].title), "%s", title ? title : id);
+  bgt[i].every = every < 5 ? 5 : every; bgt[i].start = start;
+}
+static void bg_unregister(const char *id) {           /* el paquet es descarrega: es guarda l'estat, però sense funció */
+  int i;
+  for (i = 0; i < nbg; i++) if (!strcmp(bgt[i].id, id)) {
+    int k; for (k = 0; k < nbgSaved && strcmp(bgSaved[k].id, id); k++) {}
+    if (k == nbgSaved && nbgSaved < MAXBG) nbgSaved++;
+    if (k < MAXBG) { snprintf(bgSaved[k].id, sizeof(bgSaved[k].id), "%s", id); bgSaved[k].on = bgt[i].on; bgSaved[k].last = bgt[i].last; }
+    memmove(&bgt[i], &bgt[i + 1], sizeof(BgTask) * (size_t)(nbg - i - 1)); nbg--; i--;
+  }
+}
+static void bg_run(int i) { bgt[i].last = (long)time(NULL); bg_save(); if (bgt[i].start) bgt[i].start(); }
+static void bg_tick(void) {
+  int i, ran = 0; long now = (long)time(NULL);
+  if (!(QueryNetwork() & NET_CONNECTED)) return;
+  if (cfgCharge && !IsCharging()) return;
+  for (i = 0; i < nbg; i++) if (bgt[i].on && bgt[i].start && now - bgt[i].last >= (long)bgt[i].every * 60) { bg_run(i); ran++; }
+  (void)ran;
+}
+static void bg_now(void) { int i; for (i = 0; i < nbg; i++) if (bgt[i].on && bgt[i].start) bg_run(i); }
+static void bg_catalog(void) { store_refresh(1); }
+
+/* ───────────── feina en curs dels paquets (Host.busy) ───────────── */
+static struct { char id[48], state[100]; } busyT[16]; static int nbusy;
+static void h_busy(const char *id, const char *state) {
+  int i;
+  if (!id) return;
+  for (i = 0; i < nbusy && strcmp(busyT[i].id, id); i++) {}
+  if (!state) { if (i < nbusy) { busyT[i] = busyT[nbusy - 1]; nbusy--; } return; }
+  if (i == nbusy) { if (nbusy >= 16) return; nbusy++; }
+  snprintf(busyT[i].id, sizeof(busyT[i].id), "%s", id); snprintf(busyT[i].state, sizeof(busyT[i].state), "%s", state);
 }
 
 /* ───────────── vistes del sistema base ───────────── */
@@ -788,6 +1007,13 @@ static void v_quick(View *v) {
   ui_tile(x1, y, tw, th - U, "Aparença", cfgTheme ? "Tema fosc" : "Tema clar", 0, A_CFG_GO, V_LOOK);
   ic_path(IC_CONTRAST, x1 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
   y += th - U + gap;
+  snprintf(st, sizeof(st), nOpen == 1 ? "%d oberta" : nOpen ? "%d obertes" : "Cap", nOpen);
+  ui_tile(x0, y, tw, th - U, "Apps obertes", st, 0, A_CFG_GO, V_OPEN);
+  ic_path(IC_APPS, x0 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
+  { int nj = jobs_count(J_QUEUED) + jobs_count(J_RUNNING); if (nj) snprintf(st, sizeof(st), nj == 1 ? "%d descàrrega" : "%d descàrregues", nj); else snprintf(st, sizeof(st), "Què hi ha en marxa"); }
+  ui_tile(x1, y, tw, th - U, "Monitor", st, 0, A_CFG_GO, V_MON);
+  ic_path(IC_PULSE, x1 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
+  y += th - U + gap;
   ui_tile(x0, y, SW - U, th - U, "Configuració", "Tots els ajustos", 0, A_QGO, 0);
   ic_path(IC_SLIDERS, x0 + U * 3 / 4, y + U / 2, is, 1.8, PAL(P_FG), PAL(P_CARD));
   button(U / 2, SH - U / 2 - bh, SW - U, bh, "Surt de l'Escriptori", 0, A_EXIT, 0);
@@ -863,7 +1089,7 @@ static void cfg_row(int y, int rh, int first, const char *title, const char *val
 }
 static void row_icon(const char *ic, int y, int rh) { int s = U + U / 3; ic_path(ic, U + U / 4, y + (rh - s) / 2, s, 1.8, PAL(P_FG), PAL(P_CARD)); }
 static void v_config(View *v) {
-  int y = TOP - U / 4, rh = 2 * U + U / 8, g = U / 4, net = QueryNetwork(), lv = light_get(), nu = avisos_unread(), bs, yy; char t[80];
+  int y = TOP - U / 4, rh = 2 * U, g = U / 4, net = QueryNetwork(), lv = light_get(), nu = avisos_unread(), bs, yy; char t[80];
   (void)v; cfg_load(); wl_collect(); home_load(); fav_load();
   header("Configuració", "");
   yy = cfg_group(y, "CONNEXIÓ", 1, rh);
@@ -903,15 +1129,18 @@ static void v_config(View *v) {
   cfg_row(yy + 3 * rh, rh, 0, "Paquets", t, CR_CHEV, A_CFG_GO, V_STORE);
   row_icon(IC_PACKAGE, yy + 3 * rh, rh);
   y = yy + 4 * rh + g;
-  yy = cfg_group(y, "SISTEMA", 3, rh);
+  yy = cfg_group(y, "SISTEMA", 4, rh);
   if (updState == 2) snprintf(t, sizeof(t), "Versió %s disponible", updName); else if (updState == 1) snprintf(t, sizeof(t), "Al dia"); else if (updState == 3) snprintf(t, sizeof(t), "Instal·lada: reobre l'Escriptori"); else snprintf(t, sizeof(t), "Versió %s", APP_VERNAME);
   cfg_row(yy, rh, 1, "Actualització", t, CR_CHEV, A_CFG_GO, V_UPDATE);
   row_icon(IC_DOWNLOAD, yy, rh);
   { const char *m = GetDeviceModel(); snprintf(t, sizeof(t), "%s", m && m[0] ? m : ""); }
   cfg_row(yy + rh, rh, 0, "Sobre el dispositiu", t, CR_CHEV, A_CFG_GO, V_ABOUT);
   row_icon(IC_INFO, yy + rh, rh);
-  cfg_row(yy + 2 * rh, rh, 0, "Surt de l'Escriptori", "", CR_NONE, A_EXIT, 0);
-  row_icon(IC_POWER, yy + 2 * rh, rh);
+  { int nj = jobs_count(J_QUEUED) + jobs_count(J_RUNNING); if (nj) snprintf(t, sizeof(t), nj == 1 ? "%d descàrrega" : "%d descàrregues", nj); else snprintf(t, sizeof(t), "%s", cfgCharge ? "Només carregant" : "Sincronització activa"); }
+  cfg_row(yy + 2 * rh, rh, 0, "Feina de fons", t, CR_CHEV, A_CFG_GO, V_JOBS);
+  row_icon(IC_REFRESH, yy + 2 * rh, rh);
+  cfg_row(yy + 3 * rh, rh, 0, "Monitor de processos", "", CR_CHEV, A_CFG_GO, V_MON);
+  row_icon(IC_BARS, yy + 3 * rh, rh);
 }
 /* Control segmentat: n opcions, la triada plena. Cada opció crida act amb el seu índex. */
 static void seg(int x, int y, int w, int h, const char **lab, int n, int cur, int act) {
@@ -923,6 +1152,294 @@ static void seg(int x, int y, int w, int h, const char **lab, int n, int cur, in
     SetFont(fBold, i == cur ? PAL(P_ACCFG) : PAL(P_FG)); DrawTextRect(sx + 4, y, sw - 8, h, lab[i], ALIGN_CENTER | VALIGN_MIDDLE | DOTS);
     add_hit(sx, y, sw, h, act, i);
   }
+}
+/* ───────────── Apps obertes ───────────── */
+static void ago(char *o, int sz, long t);
+static void draw_thumb(const ibitmap *b, int x, int y, int w, int h) {
+  int cw = b->width < w ? b->width : w, ch = b->height < h ? b->height : h, r; ibitmap *c;
+  c = (ibitmap *)malloc(sizeof(ibitmap) + (size_t)cw * ch);
+  if (!c) return;
+  c->width = (unsigned short)cw; c->height = (unsigned short)ch; c->depth = 8; c->scanline = (unsigned short)cw;
+  for (r = 0; r < ch; r++) memcpy(c->data + r * cw, b->data + r * b->scanline, (size_t)cw);
+  DrawBitmap(x + (w - cw) / 2, y, c);
+  free(c);
+}
+static void v_open(View *v) {
+  int gap = U / 2, cw = (SW - U - gap) / 2, ch = (SH - TOP - 2 * U - U / 2 - U - gap) / 2, per = 4, i, k, ty, bh = 2 * U + U / 4, bw = (SW - U - U / 3) / 2; char sub[60], t[120], a[40];
+  snprintf(sub, sizeof(sub), nOpen == 1 ? "%d oberta" : "%d obertes", nOpen);
+  header("Apps obertes", sub);
+  pages = nOpen ? (nOpen + per - 1) / per : 1; if (v->page >= pages) v->page = pages - 1;
+  if (!nOpen) {
+    ui_card(U / 2, TOP, SW - U, 4 * U, UI_LINE);
+    SetFont(fText, PAL(P_SUB)); DrawTextRect(U + U / 4, TOP, SW - 3 * U, 4 * U, "No hi ha cap app oberta. Les que facis servir quedaran aquí quan tornis a l'inici.", ALIGN_LEFT | VALIGN_MIDDLE);
+  }
+  for (k = 0, i = v->page * per; i < nOpen && k < per; i++, k++) {
+    int x = U / 2 + (k % 2) * (cw + gap), y = TOP + (k / 2) * (ch + gap), m = mod_find(opened[i].id), ph = ch - 3 * U, T = 2 * U, d = U * 7 / 4;
+    ui_card(x, y, cw, ch, UI_LINE);
+    rfill(x + U / 4, y + U / 4, cw - U / 2, ph - U / 4, U / 2, PAL(P_TILE));
+    if (opened[i].thumb) draw_thumb(opened[i].thumb, x + U / 4 + U / 4, y + U / 2, cw - U, ph - U);
+    else if (m >= 0) app_icon(m, x + (cw - 3 * U) / 2, y + (ph - 3 * U) / 2, 3 * U, 70, PAL(P_SUB), PAL(P_TILE));
+    add_hit(x, y, cw, ch, A_OPEN, i);
+    ty = y + ph + U / 4;
+    rfill(x + U / 3, ty + U / 4, T, T, T * 35 / 100, PAL(P_TILE));
+    if (m >= 0) app_icon(m, x + U / 3, ty + U / 4, T, 72, PAL(P_FG), PAL(P_TILE));
+    SetFont(fBold, PAL(P_FG)); DrawTextRect(x + U / 3 + T + U / 3, ty, cw - T - d - U * 3 / 2, U + U / 4, m >= 0 ? mods[m].m->name : opened[i].id, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    ago(a, sizeof(a), opened[i].t);
+    { void (*rs)(char *, int) = m >= 0 ? (void (*)(char *, int))dlsym(mods[m].dl, "escriptori_resume") : NULL; char r[80] = ""; if (rs) rs(r, sizeof(r)); if (r[0]) snprintf(t, sizeof(t), "%s", r); else snprintf(t, sizeof(t), "Oberta %s", a); }
+    SetFont(fSmall, PAL(P_SUB)); DrawTextRect(x + U / 3 + T + U / 3, ty + U + U / 4, cw - T - d - U * 3 / 2, U, t, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    round_icon(x + cw - U / 3 - d, ty + U / 2, d, 0, IC_CLOSE);
+    add_hit(x + cw - d - U, ty, d + U, 3 * U, A_OPEN_CLOSE, i);
+  }
+  ty = SH - NAVH - U / 2 - U / 4 - bh - (pages > 1 ? 0 : -NAVH - U / 4);
+  if (nOpen) button(U / 2, ty, bw, bh, "Tanca-les totes", 0, A_OPEN_ALL, 0);
+  button(nOpen ? U / 2 + bw + U / 3 : U / 2, ty, nOpen ? bw : SW - U, bh, "Pantalla dividida", 1, A_OPEN_SPLIT, 0);
+}
+/* ───────────── Pantalla dividida ───────────── */
+static void v_split(View *v) {
+  static const char *SZ[3] = { "Meitat i meitat", "Més gran a dalt", "Més gran a baix" };
+  int p, y, h, bh2 = 2 * U, bw = (SW - U - 2 * (U / 3)) / 3, by;
+  (void)v;
+  for (p = 0; p < 2; p++) {
+    int m = mod_find(splitId[p]);
+    split_geom(p, &y, &h);
+    rcard(U / 4, y, SW - U / 2, h, U, 2, PAL(P_LINE), PAL(P_BG));
+    if (m < 0 || !splitN[p]) { SetFont(fText, PAL(P_SUB)); DrawTextRect(U, y, SW - 2 * U, h, "Aquesta app ja no està instal·lada.", ALIGN_CENTER | VALIGN_MIDDLE); continue; }
+    pane_enter(p);
+    { View *pv = &splitSt[p][splitN[p] - 1]; pv->mod = m;
+      mods[m].m->fn_draw(pv);
+      if (pv->page >= pages) pv->page = pages > 0 ? pages - 1 : 0;
+      footer(pv->page); }
+    pane_leave();
+  }
+  split_geom(0, &y, &h);
+  by = y + h + (2 * U + U / 2 - bh2) / 2;
+  button(U / 2, by, bw, bh2, "Intercanvia", 1, A_SPLIT_SWAP, 0);
+  button(U / 2 + bw + U / 3, by, bw, bh2, SZ[splitRatio], 0, A_SPLIT_SIZE, 0);
+  button(U / 2 + 2 * (bw + U / 3), by, bw, bh2, "Tanca la divisió", 0, A_SPLIT_CLOSE, 0);
+}
+static void v_splitpick(View *v) {
+  int y = TOP, rh = 3 * U, n = 0, i, k, T = 2 * U + U / 4, pw = 3 * U + U / 2, ph = 2 * U, bh = 2 * U + U / 2, ok; char sub[100];
+  (void)v;
+  for (i = 0; i < nmods; i++) if (mods[i].split) n++;
+  if (pickTop < 0 || pickTop >= nmods || !mods[pickTop].split) { pickTop = -1; for (i = 0; i < nmods; i++) if (mods[i].split && (pickTop < 0 || open_find(mods[i].id) >= 0)) { pickTop = i; if (open_find(mods[i].id) >= 0) break; } }
+  if (pickBot < 0 || pickBot >= nmods || !mods[pickBot].split || pickBot == pickTop) { pickBot = -1; for (i = 0; i < nmods; i++) if (mods[i].split && i != pickTop) { pickBot = i; break; } }
+  snprintf(sub, sizeof(sub), "Tria l'app de dalt i la de baix");
+  header("Pantalla dividida", sub);
+  if (n < 2) { SetFont(fText, PAL(P_FG)); DrawTextRect(U / 2, y, SW - U, 4 * U, "Cal tenir instal·lades almenys dues apps que es puguin dividir (Notes, Tasques, Calculadora o Lector).", ALIGN_LEFT | VALIGN_TOP); return; }
+  ui_card(U / 2, y, SW - U, n * rh, UI_LINE);
+  for (i = 0, k = 0; i < nmods; i++) {
+    int ry, tx;
+    if (!mods[i].split) continue;
+    ry = y + k * rh;
+    if (k) FillArea(U, ry, SW - 2 * U, 2, PAL(P_LINE));
+    rfill(U, ry + (rh - T) / 2, T, T, T * 35 / 100, PAL(P_TILE)); app_icon(i, U, ry + (rh - T) / 2, T, 72, PAL(P_FG), PAL(P_TILE));
+    SetFont(fBold, PAL(P_FG)); DrawTextRect(U + T + U / 2, ry, SW - 4 * U - T - 2 * pw, rh, mods[i].m->name, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    tx = SW - U - 2 * pw - U / 3;
+    rfill(tx, ry + (rh - ph) / 2, pw, ph, ph / 2, i == pickTop ? PAL(P_ACC) : PAL(P_TILE));
+    SetFont(fBold, i == pickTop ? PAL(P_ACCFG) : PAL(P_FG)); DrawTextRect(tx, ry + (rh - ph) / 2, pw, ph, "A dalt", ALIGN_CENTER | VALIGN_MIDDLE);
+    add_hit(tx - U / 4, ry, pw + U / 3, rh, A_PICK_TOP, i);
+    rfill(tx + pw + U / 3, ry + (rh - ph) / 2, pw, ph, ph / 2, i == pickBot ? PAL(P_ACC) : PAL(P_TILE));
+    SetFont(fBold, i == pickBot ? PAL(P_ACCFG) : PAL(P_FG)); DrawTextRect(tx + pw + U / 3, ry + (rh - ph) / 2, pw, ph, "A baix", ALIGN_CENTER | VALIGN_MIDDLE);
+    add_hit(tx + pw + U / 4, ry, pw + U / 2, rh, A_PICK_BOT, i);
+    k++;
+  }
+  y += n * rh + U / 2;
+  SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U, y, SW - 2 * U, 3 * U, "Les altres apps s'obren sempre a pantalla completa. Si una de les triades ja era oberta, continua on era.", ALIGN_LEFT | VALIGN_TOP);
+  ok = pickTop >= 0 && pickBot >= 0 && pickTop != pickBot;
+  if (ok) button(U / 2, SH - U / 2 - bh, SW - U, bh, "Obre la pantalla dividida", 1, A_PICK_GO, 0);
+}
+/* Acció dins d'un panell. */
+static void split_exit(int keep) {                       /* keep = panell que queda a pantalla completa, -1 cap */
+  int p;
+  for (p = 0; p < 2; p++) if (p != keep) split_save(p);
+  depth = 1; stack[0].page = 0;
+  if (keep >= 0) { int m = mod_find(splitId[keep]), i; if (m >= 0) for (i = 0; i < splitN[keep] && depth < MAXSTACK; i++) { stack[depth] = splitSt[keep][i]; stack[depth].mod = m; depth++; } }
+  splitN[0] = splitN[1] = 0;
+}
+static void split_act(int p, int a, int arg) {
+  int m = mod_find(splitId[p]); View *pv;
+  if (m < 0 || !splitN[p]) return;
+  paneLast = p;
+  pv = &splitSt[p][splitN[p] - 1]; pv->mod = m;
+  if (a == A_HOME) { split_exit(-1); draw(1); return; }
+  if (a == A_BACK) {
+    int handled;
+    pane_enter(p); handled = mods[m].m->fn_back && mods[m].m->fn_back(pv); pane_leave();
+    if (handled) { draw(1); return; }
+    if (splitN[p] > 1) { splitN[p]--; draw(1); return; }
+    split_exit(1 - p); draw(1); return;                   /* enrere a l'arrel: l'altra app queda a pantalla completa */
+  }
+  if (a == A_PREV) { if (pv->page > 0) { pv->page--; draw(0); } return; }
+  if (a == A_NEXT) { pv->page++; draw(0); return; }
+  if (a >= 100 && mods[m].m->fn_action) { pane_enter(p); mods[m].m->fn_action(pv, a, arg); pane_leave(); }
+}
+/* ───────────── Monitor ───────────── */
+static long proc_val(const char *file, const char *key) {
+  FILE *f = fopen(file, "r"); char ln[256]; long v = -1; size_t k = strlen(key);
+  if (!f) return -1;
+  while (fgets(ln, sizeof(ln), f)) if (!strncmp(ln, key, k)) { v = atol(ln + k); break; }
+  fclose(f);
+  return v;
+}
+static int cpu_sample(long long *tot, long long *idle) {
+  FILE *f = fopen("/proc/stat", "r"); long long a[8] = { 0 }; int n;
+  if (!f) return 0;
+  n = fscanf(f, "cpu %lld %lld %lld %lld %lld %lld %lld %lld", &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7]);
+  fclose(f);
+  if (n < 4) return 0;
+  *idle = a[3] + (n > 4 ? a[4] : 0); *tot = a[0] + a[1] + a[2] + a[3] + a[4] + a[5] + a[6] + a[7];
+  return 1;
+}
+static int cpu_pct(void) {                      /* ús del processador des de la mostra anterior (o en 0,3 s) */
+  static long long pt, pi; long long t, i;
+  if (!pt && cpu_sample(&pt, &pi)) usleep(300000);
+  if (!cpu_sample(&t, &i) || t <= pt) return -1;
+  { int r = (int)(100 - (i - pi) * 100 / (t - pt)); pt = t; pi = i; return r < 0 ? 0 : r > 100 ? 100 : r; }
+}
+enum { MR_SYS, MR_VIS, MR_OPEN, MR_BUSY, MR_JOB, MR_SYNC };
+static void mon_row(int y, int rh, int first, const char *ic, int dark, const char *name, const char *state, const char *mem, int act, int arg, const char *btn) {
+  int T = rh - U / 2 - U / 4, bw = 3 * U + U / 2, bh = U + U / 2;
+  if (!first) FillArea(U, y, SW - 2 * U, 2, PAL(P_LINE));
+  rfill(U, y + (rh - T) / 2, T, T, T * 35 / 100, dark ? PAL(P_ACC) : PAL(P_TILE));
+  ic_path(ic, U + T / 6, y + (rh - T) / 2 + T / 6, T * 2 / 3, 1.8, dark ? PAL(P_ACCFG) : PAL(P_FG), dark ? PAL(P_ACC) : PAL(P_TILE));
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(U + T + U / 2, y + U / 6, SW - 4 * U - T - bw - 3 * U, rh / 2, name, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U + T + U / 2, y + rh / 2 - U / 8, SW - 4 * U - T - bw, rh / 2, state, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  if (mem && mem[0]) { SetFont(fSmall, PAL(P_FG)); DrawTextRect(SW - U - bw - 3 * U - U / 2, y + U / 6, 3 * U, rh / 2, mem, ALIGN_RIGHT | VALIGN_MIDDLE); }
+  if (btn && !btn[0]) {}
+  else if (btn) {
+    rfill(SW - U - bw, y + (rh - bh) / 2, bw, bh, bh / 2, PAL(P_TILE));
+    SetFont(fSmall, PAL(P_FG)); DrawTextRect(SW - U - bw, y + (rh - bh) / 2, bw, bh, btn, ALIGN_CENTER | VALIGN_MIDDLE);
+    add_hit(SW - U - bw - U / 4, y, bw + U / 2, rh, act, arg);
+  } else { SetFont(fSmall, PAL(P_SUB)); DrawTextRect(SW - U - bw, y, bw, rh, "sistema", ALIGN_CENTER | VALIGN_MIDDLE); }
+}
+static void v_mon(View *v) {
+  typedef struct { int kind, idx; char name[64], state[120]; const char *ic; } MRow;
+  MRow r[48]; int n = 0, i, k, gy = TOP, gw = (SW - U - 2 * (U / 3)) / 3, gh = 5 * U, y, rh = 3 * U, per, cpu;
+  long rss = proc_val("/proc/self/status", "VmRSS:"), thr = proc_val("/proc/self/status", "Threads:"), mt = proc_val("/proc/meminfo", "MemTotal:"), ma = proc_val("/proc/meminfo", "MemAvailable:");
+  char a[40], b2[60]; const char *GL[3] = { "Memòria", "Processador", "Bateria" }; char gv[3][24], gn[3][60]; int gp[3];
+  if (ma < 0) { long fr = proc_val("/proc/meminfo", "MemFree:"), ca = proc_val("/proc/meminfo", "Cached:"); ma = fr >= 0 ? fr + (ca > 0 ? ca : 0) : -1; }
+  cpu = cpu_pct();
+  header("Monitor", "Què hi ha en marxa ara mateix");
+  snprintf(gv[0], 24, rss >= 0 ? "%ld MB" : "—", (rss + 512) / 1024); gp[0] = mt > 0 && ma >= 0 ? (int)((mt - ma) * 100 / mt) : 0;
+  if (mt > 0 && ma >= 0) snprintf(gn[0], 60, "lector: %d%% ocupada", gp[0]); else snprintf(gn[0], 60, "de l'Escriptori");
+  snprintf(gv[1], 24, cpu >= 0 ? "%d%%" : "—", cpu); gp[1] = cpu > 0 ? cpu : 0; snprintf(gn[1], 60, "des de l'última mirada");
+  snprintf(gv[2], 24, "%d%%", batt_pct()); gp[2] = batt_pct(); snprintf(gn[2], 60, "%s", IsCharging() ? "carregant" : "sense carregar");
+  for (i = 0; i < 3; i++) {
+    int x = U / 2 + i * (gw + U / 3), bw = gw - U;
+    ui_card(x, gy, gw, gh, UI_LINE);
+    SetFont(fSmall, PAL(P_SUB)); DrawTextRect(x + U / 2, gy + U / 3, bw, U, GL[i], ALIGN_LEFT | VALIGN_MIDDLE);
+    SetFont(fBig, PAL(P_FG)); DrawTextRect(x + U / 2, gy + U + U / 3, bw, U * 3 / 2, gv[i], ALIGN_LEFT | VALIGN_MIDDLE);
+    rfill(x + U / 2, gy + 3 * U, bw, U / 3, U / 6, PAL(P_TILE));
+    if (gp[i] * bw / 100 > U / 3) rfill(x + U / 2, gy + 3 * U, gp[i] * bw / 100, U / 3, U / 6, PAL(P_FG));
+    SetFont(fSmall, PAL(P_SUB)); DrawTextRect(x + U / 2, gy + 3 * U + U / 2, bw, U + U / 4, gn[i], ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  }
+  /* llista */
+  memset(&r[n], 0, sizeof(MRow)); r[n].kind = MR_SYS; r[n].ic = IC_GRID; snprintf(r[n].name, 64, "Escriptori");
+  snprintf(r[n].state, 120, thr > 0 ? "Sistema · %ld fils · %s" : "Sistema", thr, jobsAsync > 0 ? "descàrregues en un fil propi" : "descàrregues al fil principal"); n++;
+  for (k = 0; k < depth; k++) if (stack[k].mod >= 0 && stack[k].mod < nmods && (k == 0 || stack[k - 1].mod != stack[k].mod)) {
+    memset(&r[n], 0, sizeof(MRow)); r[n].kind = MR_VIS; r[n].ic = IC_APPS; snprintf(r[n].name, 64, "%s", mods[stack[k].mod].m->name); snprintf(r[n].state, 120, "Oberta · sota aquesta pantalla"); n++;
+  }
+  for (k = 0; k < depth; k++) if (stack[k].mod < 0 && stack[k].type == V_SPLIT) { int p; for (p = 0; p < 2 && n < 40; p++) { int m = mod_find(splitId[p]); if (m < 0) continue; memset(&r[n], 0, sizeof(MRow)); r[n].kind = MR_VIS; r[n].ic = IC_SPLIT; snprintf(r[n].name, 64, "%s", mods[m].m->name); snprintf(r[n].state, 120, "Pantalla dividida · %s", p ? "a baix" : "a dalt"); n++; } }
+  for (k = 0; k < nOpen && n < 40; k++) { int m = mod_find(opened[k].id); memset(&r[n], 0, sizeof(MRow)); r[n].kind = MR_OPEN; r[n].idx = k; r[n].ic = IC_APPS; snprintf(r[n].name, 64, "%s", m >= 0 ? mods[m].m->name : opened[k].id); ago(a, sizeof(a), opened[k].t); snprintf(r[n].state, 120, "En pausa · oberta %s", a); n++; }
+  for (k = 0; k < nbusy && n < 40; k++) { int m = mod_find(busyT[k].id); memset(&r[n], 0, sizeof(MRow)); r[n].kind = MR_BUSY; r[n].idx = k; r[n].ic = IC_PULSE; snprintf(r[n].name, 64, "%s", m >= 0 ? mods[m].m->name : busyT[k].id); snprintf(r[n].state, 120, "Treballant · %s", busyT[k].state); n++; }
+  for (k = 0; k < MAXJOBS && n < 40; k++) {
+    int st; long dn, tot;
+    pthread_mutex_lock(&jm); st = jobs[k].state; dn = jobs[k].done; tot = jobs[k].total; pthread_mutex_unlock(&jm);
+    if (st != J_QUEUED && st != J_RUNNING) continue;
+    memset(&r[n], 0, sizeof(MRow)); r[n].kind = MR_JOB; r[n].idx = k; r[n].ic = IC_DOWNLOAD; snprintf(r[n].name, 64, "%s", jobs[k].title);
+    if (st == J_RUNNING && tot > 0) snprintf(r[n].state, 120, "Baixant · %d%%", (int)(dn * 100 / tot)); else snprintf(r[n].state, 120, "%s", st == J_RUNNING ? "Baixant" : "A la cua");
+    n++;
+  }
+  { int on = 0; long nxt = -1; for (k = 0; k < nbg; k++) if (bgt[k].on && bgt[k].start) { long d = bgt[k].last + (long)bgt[k].every * 60 - (long)time(NULL); on++; if (nxt < 0 || d < nxt) nxt = d; }
+    memset(&r[n], 0, sizeof(MRow)); r[n].kind = MR_SYNC; r[n].ic = IC_REFRESH; snprintf(r[n].name, 64, "Sincronització automàtica");
+    if (!on) snprintf(r[n].state, 120, "Aturada");
+    else if (!(QueryNetwork() & NET_CONNECTED)) snprintf(r[n].state, 120, "%d tasques · esperant el Wi-Fi", on);
+    else if (nxt <= 60) snprintf(r[n].state, 120, "%d tasques · la propera, ara", on);
+    else snprintf(r[n].state, 120, "%d tasques · la propera d'aquí a %ld min", on, nxt / 60);
+    n++; }
+  y = gy + gh + U / 2;
+  snprintf(b2, sizeof(b2), "EN MARXA · %d", n);
+  SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U, y, SW - 2 * U, U + U / 4, b2, ALIGN_LEFT | VALIGN_MIDDLE);
+  y += U + U / 4;
+  per = (BOTTOM - y) / rh; if (per < 1) per = 1;
+  pages = (n + per - 1) / per; if (v->page >= pages) v->page = pages - 1;
+  { int cnt = n - v->page * per; if (cnt > per) cnt = per; ui_card(U / 2, y, SW - U, cnt * rh, UI_LINE); }
+  for (k = v->page * per, i = 0; k < n && i < per; k++, i++) {
+    const MRow *q = &r[k]; char mem[24] = "";
+    if (q->kind == MR_SYS && rss >= 0) snprintf(mem, sizeof(mem), "%ld MB", (rss + 512) / 1024);
+    mon_row(y + i * rh, rh, i == 0, q->ic, q->kind == MR_SYS, q->name, q->state, mem,
+            q->kind == MR_OPEN || q->kind == MR_BUSY || q->kind == MR_JOB ? A_MON_STOP : q->kind == MR_SYNC ? A_CFG_GO : A_NONE,
+            q->kind == MR_OPEN ? 1000 + q->idx : q->kind == MR_BUSY ? 2000 + q->idx : q->kind == MR_JOB ? 3000 + q->idx : V_JOBS,
+            q->kind == MR_OPEN ? "Tanca" : q->kind == MR_BUSY || q->kind == MR_JOB ? "Atura" : q->kind == MR_SYNC ? "Obre" : q->kind == MR_VIS ? "" : NULL);
+  }
+}
+/* ───────────── Feina de fons ───────────── */
+static void ago(char *o, int sz, long t) {
+  long d = (long)time(NULL) - t;
+  if (t <= 0) snprintf(o, (size_t)sz, "encara no");
+  else if (d < 90) snprintf(o, (size_t)sz, "fa un moment");
+  else if (d < 5400) snprintf(o, (size_t)sz, "fa %ld min", d / 60);
+  else if (d < 172800) snprintf(o, (size_t)sz, "fa %ld h", d / 3600);
+  else snprintf(o, (size_t)sz, "fa %ld dies", d / 86400);
+}
+static void every_txt(char *o, int sz, int m) {
+  if (m % 1440 == 0) snprintf(o, (size_t)sz, m == 1440 ? "Un cop al dia" : "Cada %d dies", m / 1440);
+  else if (m % 60 == 0) snprintf(o, (size_t)sz, m == 60 ? "Cada hora" : "Cada %d hores", m / 60);
+  else snprintf(o, (size_t)sz, "Cada %d min", m);
+}
+static void v_jobs(View *v) {
+  int y = TOP, rh = 2 * U + U / 2, jh = 3 * U + U / 2, n = 0, i, k, tw = 2 * U, th = U + U / 4, bh = 2 * U + U / 2, yy; char t[160], a[40];
+  (void)v; cfg_load();
+  header("Feina de fons", jobsAsync > 0 ? "La pantalla continua responent mentre es baixa" : "Les descàrregues es fan d'una en una");
+  SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U, y, SW - 2 * U, U + U / 4, "DESCÀRREGUES", ALIGN_LEFT | VALIGN_MIDDLE);
+  y += U + U / 4;
+  pthread_mutex_lock(&jm);
+  for (i = 0; i < MAXJOBS; i++) if (jobs[i].state == J_QUEUED || jobs[i].state == J_RUNNING) n++;
+  pthread_mutex_unlock(&jm);
+  if (n > 5) n = 5;
+  ui_card(U / 2, y, SW - U, n ? n * jh : rh, UI_LINE);
+  if (!n) { SetFont(fText, PAL(P_SUB)); DrawTextRect(U + U / 4, y, SW - 3 * U, rh, "No s'està baixant res.", ALIGN_LEFT | VALIGN_MIDDLE); y += rh; }
+  for (i = 0, k = 0; i < MAXJOBS && k < n; i++) {
+    int st, pct = -1, bx = U + U / 4, bw = SW - 2 * U - U / 2 - 6 * U, by; long dn, tot;
+    pthread_mutex_lock(&jm); st = jobs[i].state; dn = jobs[i].done; tot = jobs[i].total; pthread_mutex_unlock(&jm);
+    if (st != J_QUEUED && st != J_RUNNING) continue;
+    if (k) FillArea(U, y, SW - 2 * U, 2, PAL(P_LINE));
+    SetFont(fBold, PAL(P_FG)); DrawTextRect(bx, y + U / 4, SW - 3 * U - 6 * U, U + U / 2, jobs[i].title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    if (st == J_RUNNING && tot > 0) { char d1[24], d2[24]; pct = (int)(dn * 100 / tot); fmt_size(d1, sizeof(d1), dn); fmt_size(d2, sizeof(d2), tot); snprintf(t, sizeof(t), "%s de %s", d1, d2); }
+    else snprintf(t, sizeof(t), "%s", st == J_RUNNING ? "baixant…" : "a la cua");
+    SetFont(fSmall, PAL(P_SUB)); DrawTextRect(SW - U - 6 * U - U / 2, y + U / 4, 6 * U, U + U / 2, t, ALIGN_RIGHT | VALIGN_MIDDLE | DOTS);
+    by = y + 2 * U + U / 4;
+    rfill(bx, by, bw, U / 3, U / 6, PAL(P_TILE));
+    if (pct >= 0 && pct * bw / 100 > U / 3) rfill(bx, by, pct * bw / 100, U / 3, U / 6, PAL(P_FG));
+    rfill(SW - U - 4 * U - U / 4, y + 2 * U - U / 4, 4 * U, U + U / 3, (U + U / 3) / 2, PAL(P_TILE));
+    SetFont(fSmall, PAL(P_FG)); DrawTextRect(SW - U - 4 * U - U / 4, y + 2 * U - U / 4, 4 * U, U + U / 3, "Cancel·la", ALIGN_CENTER | VALIGN_MIDDLE);
+    add_hit(SW - U - 5 * U, y + U + U / 2, 5 * U, 2 * U, A_JOB_CANCEL, i);
+    y += jh; k++;
+  }
+  y += U / 2;
+  SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U, y, SW - 2 * U, U + U / 4, "SINCRONITZACIÓ AUTOMÀTICA", ALIGN_LEFT | VALIGN_MIDDLE);
+  y += U + U / 4;
+  ui_card(U / 2, y, SW - U, (nbg + 1) * rh, UI_LINE);
+  yy = y;
+  for (i = 0; i < nbg; i++) {
+    if (i) FillArea(U, yy, SW - 2 * U, 2, PAL(P_LINE));
+    every_txt(t, sizeof(t), bgt[i].every); ago(a, sizeof(a), bgt[i].last);
+    { size_t l = strlen(t); snprintf(t + l, sizeof(t) - l, " · darrera: %s", a); }
+    SetFont(fBold, PAL(P_FG)); DrawTextRect(U + U / 4, yy + U / 4, SW - 4 * U - tw, U + U / 4, bgt[i].title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U + U / 4, yy + U + U / 2, SW - 4 * U - tw, U, t, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    ui_toggle(SW - U - tw, yy + (rh - th) / 2, tw, th, bgt[i].on);
+    add_hit(U / 2, yy, SW - U, rh, A_SYNC_TOGGLE, i);
+    yy += rh;
+  }
+  FillArea(U, yy, SW - 2 * U, 2, PAL(P_LINE));
+  SetFont(fBold, PAL(P_FG)); DrawTextRect(U + U / 4, yy + U / 4, SW - 4 * U - tw, U + U / 4, "Només carregant", ALIGN_LEFT | VALIGN_MIDDLE);
+  SetFont(fSmall, PAL(P_SUB)); DrawTextRect(U + U / 4, yy + U + U / 2, SW - 4 * U - tw, U, "Sincronitza només amb el lector endollat", ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+  ui_toggle(SW - U - tw, yy + (rh - th) / 2, tw, th, cfgCharge);
+  add_hit(U / 2, yy, SW - U, rh, A_SYNC_CHARGE, 0);
+  y = yy + rh + U / 2;
+  SetFont(fSmall, PAL(P_SUB));
+  DrawTextRect(U, y, SW - 2 * U, 3 * U, "La sincronització només es fa amb el Wi-Fi ja connectat (no l'engega sola) i amb l'Escriptori obert. Quan el lector s'adorm, tot s'atura.", ALIGN_LEFT | VALIGN_TOP);
+  button(U / 2, SH - U / 2 - bh, SW - U, bh, "Sincronitza ara", 1, A_SYNC_NOW, 0);
 }
 /* ───────────── Aparença ───────────── */
 static void v_look(View *v) {
@@ -1098,22 +1615,29 @@ static void render(void) {
       case V_FAVS: v_favs(v); break;
       case V_LOOK: v_look(v); break;
       case V_FONTS: v_fonts(v); break;
+      case V_JOBS: v_jobs(v); break;
+      case V_OPEN: v_open(v); break;
+      case V_SPLIT: v_split(v); break;
+      case V_SPLITPICK: v_splitpick(v); break;
+      case V_MON: v_mon(v); break;
       case V_QUICK: v_quick(v); break;
       case V_HOME: v_home(v); break;
       case V_AVISOS: v_avisos(v); break;
     }
     if (v->page < 0) v->page = 0;
-    if (!(v->mod < 0 && v->type == V_DESK)) footer(v->page);
+    if (!(v->mod < 0 && (v->type == V_DESK || v->type == V_SPLIT))) footer(v->page);
     if (v->page == before) break;
   }
   if (escDark) InvertArea(0, 0, SW, SH);
 }
 static void draw(int full) {
-  static int nfull;
+  static int nfull; int inp = inPane;
+  if (inp >= 0) pane_leave();
   render(); cfg_load();
   /* full: 1 = canvi de pantalla (refresc complet cada cfgFull pantalles), 2 = sempre complet */
   if (full == 2 || (full && (cfgFull <= 1 || ++nfull >= cfgFull))) { FullUpdate(); nfull = 0; } else SoftUpdate();
   if (pendMsg) { const char *m = pendMsg; pendMsg = NULL; Message(ICON_INFORMATION, "Escriptori", m, 4000); }
+  if (inp >= 0) pane_enter(inp);
 }
 /* Tic d'un minut a l'escriptori: només es refresca la barra d'estat i, si n'hi ha, la zona del rellotge (no tota la pantalla). */
 static int desk_tick(void) {
@@ -1139,27 +1663,50 @@ static View *push_view(int mod, int type, int a, int b, int sel, const char *ter
   if (term) strncpy(v->term, term, sizeof(v->term) - 1);
   return v;
 }
-static void h_push(int type, int a, int b, int sel, const char *term) { push_view(stack[depth - 1].mod, type, a, b, sel, term); draw(1); }
-static void h_pop(void) { if (depth > 1) depth--; }
-static const char *h_front(void) { int m = depth > 0 ? stack[depth - 1].mod : -1; return m >= 0 && m < nmods ? mods[m].id : ""; }
+static void h_push(int type, int a, int b, int sel, const char *term) {
+  int p = inPane >= 0 ? inPane : split_on() ? paneLast : -1;
+  if (p >= 0) {
+    if (splitN[p] < 12) { View *nv = &splitSt[p][splitN[p]++]; memset(nv, 0, sizeof(*nv)); nv->mod = mod_find(splitId[p]); nv->type = type; nv->a = a; nv->b = b; nv->sel = sel; if (term) strncpy(nv->term, term, sizeof(nv->term) - 1); }
+    draw(1); return;
+  }
+  push_view(stack[depth - 1].mod, type, a, b, sel, term); draw(1);
+}
+static void h_pop(void) { int p = inPane >= 0 ? inPane : split_on() ? paneLast : -1; if (p >= 0) { if (splitN[p] > 1) splitN[p]--; return; } if (depth > 1) depth--; }
+static const char *h_front(void) {
+  int m;
+  if (inPane >= 0) return splitId[inPane];
+  if (split_on()) return splitId[paneLast];
+  m = depth > 0 ? stack[depth - 1].mod : -1; return m >= 0 && m < nmods ? mods[m].id : "";
+}
 
+/* Paquet al qual pertany una adreça de codi (per saber de qui és una descàrrega). */
+static int mod_of_ptr(void *p) {
+  Dl_info a, b; int i;
+  if (!p || !dladdr(p, &a)) return -1;
+  for (i = 0; i < nmods; i++) if (dladdr((void *)mods[i].m, &b) && b.dli_fbase == a.dli_fbase) return i;
+  return -1;
+}
+static int h_fetch(const char *url, const char *title, void (*cb)(void *, char *, int), void *ctx) {
+  int m = mod_of_ptr(*(void **)&cb);
+  return jobs_add(url, title ? title : "Descàrrega", m >= 0 ? mods[m].id : "", 60, NULL, 0, cb, ctx) >= 0 ? 0 : -1;
+}
 static void open_module(int i) {
   View *nv;
   if (i < 0 || i >= nmods) return;
+  if (open_resume(i)) return;
   nv = push_view(i, 0, 0, 0, 0, NULL);
   if (mods[i].m->fn_open) mods[i].m->fn_open(nv);
 }
 static void host_fonts(void) { host.fTitle = fTitle; host.fBold = fBold; host.fText = fText; host.fSmall = fSmall; host.fBig = fBig; host.fHuge = fHuge; }
 static void act(int a, int arg) {
   View *v = &stack[depth - 1];
-  static char msg[200];
   if (a >= 100) { if (v->mod >= 0 && v->mod < nmods && mods[v->mod].m->fn_action) mods[v->mod].m->fn_action(v, a, arg); return; }
   switch (a) {
     case A_BACK:
       if (v->mod >= 0 && mods[v->mod].m->fn_back && mods[v->mod].m->fn_back(v)) draw(1);
       else if (depth > 1) { depth--; draw(1); }
       break;
-    case A_HOME: depth = 1; stack[0].page = 0; draw(1); break;
+    case A_HOME: if (v->mod >= 0) thumb_capture(); open_save_current(); { int k; for (k = 0; k < depth; k++) if (stack[k].mod < 0 && stack[k].type == V_SPLIT) { split_exit(-1); break; } } depth = 1; stack[0].page = 0; draw(1); break;
     case A_PREV: if (v->page > 0) { v->page--; draw(0); } break;
     case A_NEXT: if (v->page < pages - 1) { v->page++; draw(0); } break;
     case A_EXIT: CloseApp(); break;
@@ -1170,21 +1717,20 @@ static void act(int a, int arg) {
       else if (arg == nmods + 1) { push_view(-1, V_SYSTEM, 0, 0, 0, NULL); draw(1); }   /* Configuració */
       else ext_launch(arg - nmods - 2);
       break;
-    case A_STORE_REFRESH: { int rc = store_refresh(); if (rc) say(rc == -1 ? "No s'ha pogut baixar el catàleg. Comprova el Wi-Fi." : "El catàleg del servidor no és vàlid."); v->page = 0; draw(1); } break;
-    case A_STORE_ALL: {
-      int i, ok = 0, bad = 0;
-      for (i = 0; i < ncat; i++) { int pv = pkg_ver(cat[i].id); if (pv && pv >= cat[i].ver && mod_find(cat[i].id) >= 0) continue; if (pkg_install(&cat[i]) == 0) ok++; else bad++; }
-      if (bad) snprintf(msg, sizeof(msg), "Instal·lats: %d. Amb error: %d. Torna-ho a provar per als que falten.", ok, bad);
-      else snprintf(msg, sizeof(msg), ok == 1 ? "S'ha instal·lat %d paquet." : "S'han instal·lat %d paquets.", ok);
-      say(msg); draw(1);
-    } break;
+    case A_STORE_REFRESH: store_refresh(0); v->page = 0; draw(0); break;
+    case A_STORE_ALL: { int i, n = 0, need[MAXCAT];
+      for (i = 0; i < ncat; i++) { int pv = pkg_ver(cat[i].id); need[i] = !(pv && pv >= cat[i].ver && mod_find(cat[i].id) >= 0) && !pkg_queued(&cat[i]); n += need[i]; }
+      instPend += n;
+      for (i = 0; i < ncat; i++) if (need[i]) pkg_install_c(&cat[i], 1);
+      draw(0); } break;
     case A_PKG: push_view(-1, V_PKG, arg, 0, 0, NULL); draw(1); break;
-    case A_PKG_INSTALL: if (arg >= 0 && arg < ncat) { int rc = pkg_install(&cat[arg]); if (rc) say(pkg_err(rc)); draw(1); } break;
+    case A_PKG_INSTALL: if (arg >= 0 && arg < ncat) { pkg_install(&cat[arg]); draw(0); } break;
     case A_PKG_REMOVE: pkgSel = arg; confirm("Desinstal·la", "Es traurà el paquet del lector. Les teves dades es conserven.", "Desinstal·la", pkg_remove); break;
-    case A_UPD_CHECK: upd_check(); draw(1); break;
-    case A_UPD_INSTALL: upd_install(); draw(1); break;
+    case A_UPD_CHECK: upd_check(); draw(0); break;
+    case A_UPD_INSTALL: upd_install(); draw(0); break;
     case A_WIFI: NetConnect(NULL); draw(1); break;
-    case A_AVISOS: if (!(v->mod < 0 && v->type == V_AVISOS)) { push_view(-1, V_AVISOS, 0, 0, 0, NULL); draw(1); } break;
+    case A_AVISOS: if (v->mod >= 0) thumb_capture();
+      if (!(v->mod < 0 && v->type == V_AVISOS)) { push_view(-1, V_AVISOS, 0, 0, 0, NULL); draw(1); } break;
     case A_AV_ONE: if (arg >= 0 && arg < nAv) { if (!av[arg].read) av[arg].read = 1; else { memmove(&av[arg], &av[arg + 1], sizeof(Aviso) * (size_t)(nAv - arg - 1)); nAv--; } avisos_save(); draw(0); } break;
     case A_AV_READ: { int i; for (i = 0; i < nAv; i++) av[i].read = 1; avisos_save(); draw(0); } break;
     case A_AV_CLEAR: nAv = 0; avisos_save(); draw(0); break;
@@ -1211,7 +1757,34 @@ static void act(int a, int arg) {
       break;
     case A_DESK_PREV: if (v->page > 0) { v->page--; draw(0); } break;
     case A_DESK_NEXT: if (v->page < pages - 1) { v->page++; draw(0); } break;
-    case A_QUICK: if (!(v->mod < 0 && v->type == V_QUICK)) { push_view(-1, V_QUICK, 0, 0, 0, NULL); draw(1); } break;
+    case A_OPEN:
+      if (arg >= 0 && arg < nOpen) { int m = mod_find(opened[arg].id); depth = 1; if (m >= 0) open_module(m); else open_drop(arg); draw(1); }
+      break;
+    case A_MON_STOP:
+      if (arg >= 3000) jobs_cancel(arg - 3000);
+      else if (arg >= 2000) { int b = arg - 2000; if (b < nbusy) { char id[48]; int k; snprintf(id, sizeof(id), "%s", busyT[b].id); for (k = 0; k < nunl; k++) if (!strcmp(unl[k].id, id)) { unl[k].fn(); break; } h_busy(id, NULL); } }
+      else if (arg >= 1000) open_drop(arg - 1000);
+      draw(0); break;
+    case A_OPEN_SPLIT: push_view(-1, V_SPLITPICK, 0, 0, 0, NULL); draw(1); break;
+    case A_PICK_TOP: pickTop = arg; if (pickBot == arg) pickBot = -1; draw(0); break;
+    case A_PICK_BOT: pickBot = arg; if (pickTop == arg) pickTop = -1; draw(0); break;
+    case A_PICK_GO:
+      if (pickTop >= 0 && pickBot >= 0 && pickTop != pickBot && pickTop < nmods && pickBot < nmods) {
+        split_fill(0, pickTop); split_fill(1, pickBot); splitRatio = 0; paneLast = 0;
+        depth = 1; push_view(-1, V_SPLIT, 0, 0, 0, NULL); draw(1);
+      }
+      break;
+    case A_SPLIT_SWAP: { char t[48]; View tv[12]; int n; memcpy(t, splitId[0], 48); memcpy(splitId[0], splitId[1], 48); memcpy(splitId[1], t, 48);
+      memcpy(tv, splitSt[0], sizeof(tv)); memcpy(splitSt[0], splitSt[1], sizeof(tv)); memcpy(splitSt[1], tv, sizeof(tv)); n = splitN[0]; splitN[0] = splitN[1]; splitN[1] = n; draw(1); } break;
+    case A_SPLIT_SIZE: splitRatio = (splitRatio + 1) % 3; draw(1); break;
+    case A_SPLIT_CLOSE: split_exit(-1); draw(1); break;
+    case A_OPEN_CLOSE: open_drop(arg); draw(0); break;
+    case A_OPEN_ALL: while (nOpen) open_drop(0); draw(0); break;
+    case A_JOB_CANCEL: jobs_cancel(arg); draw(0); break;
+    case A_SYNC_TOGGLE: if (arg >= 0 && arg < nbg) { bgt[arg].on = !bgt[arg].on; bg_save(); } draw(0); break;
+    case A_SYNC_CHARGE: cfgCharge = !cfgCharge; cfg_save(); draw(0); break;
+    case A_SYNC_NOW: bg_now(); draw(0); break;
+    case A_QUICK: if (v->mod >= 0) thumb_capture(); if (!(v->mod < 0 && v->type == V_QUICK)) { push_view(-1, V_QUICK, 0, 0, 0, NULL); draw(1); } break;
     case A_WIDGET:
       if (arg < 0 || arg >= nwl) break;
       if (wl[arg].mod >= 0) open_module(wl[arg].mod);
@@ -1244,11 +1817,14 @@ static int handler(int type, int par1, int par2) {
       SW = ScreenWidth(); SH = ScreenHeight(); U = SW / 27; if (U < 16) U = 16; SB = U * 9 / 4;
       SetPanelType(PANEL_DISABLED);
       SH -= PanelHeight();
+      scrSB = SB; scrSH = SH; inPane = -1;
       cfg_load(); theme_apply(); fonts_apply();
       host.api = ESC_API; host.SW = SW; host.SH = SH; host.U = U; host.SB = SB;
       host_fonts(); host.pal = escPal; host.icon_fg = PAL(P_FG); host.icon_bg = PAL(P_CARD); host.update = upd_region;
       host.pages = &pages; host.add_hit = add_hit; host.button = button; host.header = header; host.redraw = draw; host.push = h_push; host.pop = h_pop;
       host.say = say; host.ask = ask; host.confirm = confirm; host.net_get = net_get_t; host.notify = avisos_add; host.status_changed = sb_refresh; host.front = h_front; host.on_unload = h_on_unload;
+      host.oy = 0; host.fetch = h_fetch; host.bg_register = bg_register; host.busy = h_busy;
+      bg_load(); bg_register("cataleg", "Catàleg de paquets", 24 * 60, bg_catalog);
       depth = 1; memset(&stack[0], 0, sizeof(View)); stack[0].type = V_DESK; stack[0].mod = -1;
       mkdir(SYSDIR, 0777); mkdir(PKGDIR, 0777);
       mods_scan(); cat_load(); avisos_load();
@@ -1268,11 +1844,11 @@ static int handler(int type, int par1, int par2) {
       break;
     case EVT_POINTERUP:
       for (i = nhits - 1; i >= 0; i--)
-        if (par1 >= hits[i].x && par1 < hits[i].x + hits[i].w && par2 >= hits[i].y && par2 < hits[i].y + hits[i].h) { act(hits[i].act, hits[i].arg); break; }
+        if (par1 >= hits[i].x && par1 < hits[i].x + hits[i].w && par2 >= hits[i].y && par2 < hits[i].y + hits[i].h) { if (hits[i].pane >= 0) split_act(hits[i].pane, hits[i].act, hits[i].arg); else act(hits[i].act, hits[i].arg); break; }
       break;
     case EVT_KEYPRESS:
-      if (par1 == IV_KEY_PREV) act(A_PREV, 0);
-      else if (par1 == IV_KEY_NEXT) act(A_NEXT, 0);
+      if (par1 == IV_KEY_PREV) { if (split_on()) split_act(paneLast, A_PREV, 0); else act(A_PREV, 0); }
+      else if (par1 == IV_KEY_NEXT) { if (split_on()) split_act(paneLast, A_NEXT, 0); else act(A_NEXT, 0); }
       else if (par1 == IV_KEY_BACK) { if (depth > 1) act(A_BACK, 0); else CloseApp(); }
       else return 0;
       return 1;

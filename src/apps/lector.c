@@ -1136,3 +1136,5 @@ static int mod_back(View *v) { if (v->type == V_BOOK) save_pos(); return 0; }
 static void mod_open(View *v) { (void)v; cfg_load(); lib_scan(); }
 static Module M = { ESC_API_MIN, "lector", "Lector", 0, mod_icon, mod_draw, mod_action, mod_back, mod_open, 0, NULL, 0, NULL };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }
+/* Es pot obrir en un panell de la pantalla dividida (el dibuix fa servir SB, SH, TOP i BOTTOM). */
+__attribute__((visibility("default"))) const int escriptori_split = 1;

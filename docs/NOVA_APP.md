@@ -121,3 +121,28 @@ Un paquet pot tenir un temporitzador propi (`SetWeakTimer("<id>_poll", fn, ms)`,
 - **Fonts**: la font i la mida que tria la persona arriben pels `fText`, `fBold`… del sistema; no desis els punters en
   variables pròpies, perquè canvien quan es tria una altra font. Les fonts de la carpeta «Fonts» de la memòria es copien a
   `system/fonts`; el fons d'imatge de l'inici és la primera imatge de la carpeta «Fons».
+
+## Multitasca 2.3 (ESC_API 6)
+
+Tot això només existeix si `H->api >= 6`; comprova-ho abans d'usar-ho.
+
+- **Apps obertes**: en prémer inici, el sistema desa la pila de pantalles del paquet i en fa una miniatura. Quan
+  es torna a obrir, el paquet continua on era. Si el paquet exporta
+  `void escriptori_resume(char *buf, int n)`, el text que hi escrigui (p. ex. «Nota: Llista de la compra») surt
+  sota el nom a «Apps obertes». Les dades del paquet continuen vives mentre està obert; `on_unload` només es crida
+  quan es tanca o es desinstal·la.
+- **Descàrregues en segon pla**: `H->fetch(url, títol, cb, ctx)` posa la descàrrega a la cua del fil de treball
+  i el programa no es bloqueja. `cb(ctx, data, len)` es crida al fil principal, potser abans que `fetch` torni; `data`
+  és NULL si ha fallat, i el sistema l'allibera després de `cb`. La barra d'estat mostra el progrés, i es pot
+  cancel·lar des de Configuració › Feina de fons. Si el paquet es tanca o es desinstal·la, `cb` ja no es crida.
+  Si el lector no té libcurl o falla el TLS, la descàrrega es fa com abans (bloquejant), sense canviar res al paquet.
+- **Sincronització automàtica**: `H->bg_register(id, títol, cada_minuts, start)`. `start()` es crida al fil principal quan
+  toca, només amb el Wi-Fi ja connectat (i, si la persona ho tria, només carregant). Dins `start` fes servir
+  `H->fetch`. Vegeu `src/apps/temps.c` i `src/apps/noticies.c`.
+- **Feina pròpia**: `H->busy(id, "Servidor actiu")` fa sortir el paquet com a «treballant» al monitor;
+  `H->busy(id, NULL)` ho treu.
+- **Pantalla dividida**: un paquet hi pot sortir si exporta
+  `__attribute__((visibility("default"))) const int escriptori_split = 1;`. A la meitat, `SH` és l'alçada de la meitat,
+  `SB` val 0 i `H->oy` és on comença verticalment. `FillArea`, `DrawRect`, `DrawLine`, `DrawPixel`, `DrawBitmap`,
+  `InvertArea` i `DrawTextRect` ja hi sumen `H->oy`, i `header()` i els tocs també el tenen en compte. Dibuixa sempre
+  entre 0 i `SH`. Si crides directament una altra funció de dibuix de l'InkView, suma-hi `ESC_OY`.

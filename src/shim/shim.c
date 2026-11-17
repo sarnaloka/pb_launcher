@@ -30,6 +30,9 @@ void DrawBitmap(int x, int y, const ibitmap *b) {
   o->data[(size_t)b->width * b->height * 2] = 0;
 }
 void DrawPixel(int x, int y, int c) { add('F', x, y, 1, 1, c); }
+/* El simulador no té píxels: la captura és un gris pla (l'app la mostra com a miniatura). */
+ibitmap *BitmapFromScreen(int x, int y, int w, int h) { ibitmap *b = malloc(sizeof(ibitmap) + (size_t)w * h); (void)x; (void)y; b->width = w; b->height = h; b->depth = 8; b->scanline = w; memset(b->data, 200, (size_t)w * h); return b; }
+void SetClip(int x, int y, int w, int h) { (void)x; (void)y; (void)w; (void)h; }
 void InvertArea(int x, int y, int w, int h) { add('I', x, y, w, h, 0); }
 void DitherArea(int x, int y, int w, int h, int levels, int method) { (void)x; (void)y; (void)w; (void)h; (void)levels; (void)method; }
 /* Imatges: el simulador no descodifica; si el fitxer existeix, torna un degradat de la mida demanada. */
@@ -54,9 +57,23 @@ char *GetDeviceModel(void) { return "PocketBook Verse Pro (sim)"; } char *GetSer
 static int simBatt = 62, simChg, simNet = -1, simSig = 3;
 int GetBatteryPower(void) { return simBatt; } int IsCharging(void) { return simChg; } int QueryNetwork(void) { const char *e = getenv("NET"); return simNet >= 0 ? simNet : e ? (int)strtol(e, NULL, 0) : 0x0202; }
 void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int GetNetSignalQuality(void) { return simSig; }
-static iv_timerproc tickProc;
-static iv_timerproc pollProc;
-void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { if (n && strstr(n, "poll")) { pollProc = tp; return; } tickProc = tp; if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); } void ClearTimer(iv_timerproc tp) { if (pollProc == tp) pollProc = NULL; if (tickProc == tp) tickProc = NULL; } static void shot(const char *name);
+/* Temporitzadors: diversos alhora, per nom (com a l'InkView). «tick» executa els que tenen «clock» al nom; «poll», la
+   resta. Són d'un sol tret: s'esborren abans de cridar-los i el codi els torna a armar. */
+#define MAXT 16
+static struct { char name[64]; iv_timerproc p; } tms[MAXT];
+static void tm_set(const char *n, iv_timerproc tp) {
+  int i, f = -1;
+  for (i = 0; i < MAXT; i++) { if (tms[i].p && !strcmp(tms[i].name, n ? n : "")) { tms[i].p = tp; return; } if (!tms[i].p && f < 0) f = i; }
+  if (f >= 0) { snprintf(tms[f].name, sizeof(tms[f].name), "%s", n ? n : ""); tms[f].p = tp; }
+}
+static void tm_run(int clock) {
+  iv_timerproc run[MAXT]; int i, n = 0;
+  for (i = 0; i < MAXT; i++) if (tms[i].p && (strstr(tms[i].name, "clock") != NULL) == clock) { run[n++] = tms[i].p; tms[i].p = NULL; }
+  for (i = 0; i < n; i++) run[i]();
+}
+void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { tm_set(n, tp); if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); }
+void SetHardTimer(const char *n, iv_timerproc tp, int ms) { SetWeakTimer(n, tp, ms); }
+void ClearTimer(iv_timerproc tp) { int i; for (i = 0; i < MAXT; i++) if (tms[i].p == tp) tms[i].p = NULL; } static void shot(const char *name);
 void PartialUpdate(int x, int y, int w, int h) { static int n; if (getenv("PULOG")) printf("PU %d %d %d %d\n", x, y, w, h); if (getenv("PUSHOT")) { char fn[64]; snprintf(fn, sizeof(fn), "pu%d.txt", ++n); shot(fn); } }
 int NetConnect(const char *n) { (void)n; return 0; }
 int NetDisconnect(void) { printf("NetDisconnect\n"); return 0; }
@@ -90,8 +107,8 @@ void InkViewMain(iv_handler h) { char ln[300]; H = h; h(EVT_INIT, 0, 0); h(EVT_S
     else if (!strncmp(ln, "kbd ", 4)) snprintf(pendingKbd, sizeof(pendingKbd), "%s", ln + 4);
     else if (sscanf(ln, "dlg %d", &x) == 1) dlgBtn = x;
     else if (!strncmp(ln, "shot ", 5)) shot(ln + 5);
-    else if (!strcmp(ln, "tick")) { if (tickProc) tickProc(); }
-    else if (!strcmp(ln, "poll")) { iv_timerproc p = pollProc; pollProc = NULL; if (p) p(); }
+    else if (!strcmp(ln, "tick")) tm_run(1);
+    else if (!strcmp(ln, "poll")) tm_run(0);
     else if (sscanf(ln, "sleep %d", &x) == 1) usleep((useconds_t)x * 1000);
     else if (sscanf(ln, "batt %d", &x) == 1) simBatt = x;
     else if (sscanf(ln, "charge %d", &x) == 1) simChg = x;

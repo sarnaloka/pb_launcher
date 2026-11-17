@@ -243,6 +243,24 @@ static int wx_fetch(double lat, double lon) {
   wPath[0] = 0;                                          /* torna a llegir-la encara que l'hora del fitxer no canviï */
   return 1;
 }
+/* Sincronització automàtica (API 6): baixa la previsió de cada ciutat en segon pla. */
+typedef struct { char path[256]; } WxCtx;
+static void wx_bg_done(void *ctx, char *b, int len) {
+  WxCtx *c = (WxCtx *)ctx; FILE *f;
+  if (b && strstr(b, "\"daily\"") && (f = fopen(c->path, "wb"))) { fwrite(b, 1, (size_t)len, f); fclose(f); wPath[0] = 0; }
+  free(c);
+}
+static void wx_bg(void) {
+  int i;
+  cities_load();
+  for (i = 0; i < cities.n; i++) {
+    char name[80], url[1200], t[120]; double la, lo; WxCtx *c;
+    if (!city_get(i, name, sizeof(name), &la, &lo, NULL, 0) || !(c = (WxCtx *)malloc(sizeof(WxCtx)))) continue;
+    wx_path(c->path, sizeof(c->path), la, lo);
+    snprintf(url, sizeof(url), WXURL_FMT, la, lo); snprintf(t, sizeof(t), "El temps · %s", name);
+    H->fetch(url, t, wx_bg_done, c);
+  }
+}
 
 /* ───── formats ───── */
 static void deg(char *o, int sz, double t) { if (OK(t)) snprintf(o, (size_t)sz, "%d°", (int)floor(t + 0.5)); else snprintf(o, (size_t)sz, "—"); }
@@ -826,4 +844,8 @@ static void mod_action(View *v, int a, int arg) {
 }
 static void mod_open(View *v) { v->page = 0; v->sel = TAB_NOW; editing = 0; pendingCity = -1; }
 static Module M = { ESC_API_MIN, "temps", "El temps", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
-__attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }
+__attribute__((visibility("default"))) Module *escriptori_module(const Host *h) {
+  H = h;
+  if (h->api >= 6 && h->bg_register) h->bg_register("temps", "El temps", 60, wx_bg);
+  return &M;
+}

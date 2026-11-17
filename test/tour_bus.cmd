@@ -19,6 +19,11 @@ tap Festius
 tap Dissabte
 tap Desa l'horari en PDF
 xy 1010 149
+# Des de la 2.3 el Bus AMB es reprèn on era: el tanquem per tornar a començar.
+xy 600 40
+tap Apps obertes
+tap Tanca-les totes
+xy 1010 149
 tapp Bus AMB
 shot s7.txt
 tap Tria per línia
@@ -36,6 +41,10 @@ key 25
 key 25
 key 25
 shot s10.txt
+xy 1010 149
+xy 600 40
+tap Apps obertes
+tap Tanca-les totes
 xy 1010 149
 tapp Bus AMB
 kbd zzzz

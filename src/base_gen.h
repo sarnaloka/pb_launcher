@@ -1,7 +1,8 @@
 /* Peces de dibuix del sistema base (extretes del codi original). */
 /* ───────────── dibuix ───────────── */
+static int inPane = -1;
 static void add_hit(int x, int y, int w, int h, int act, int arg) {
-  if (nhits < MAXHITS) { hits[nhits].x = x; hits[nhits].y = y; hits[nhits].w = w; hits[nhits].h = h; hits[nhits].act = act; hits[nhits].arg = arg; nhits++; }
+  if (nhits < MAXHITS) { hits[nhits].x = x; hits[nhits].y = y + escOY; hits[nhits].w = w; hits[nhits].h = h; hits[nhits].act = act; hits[nhits].arg = arg; hits[nhits].pane = inPane; nhits++; }
 }
 static int escDark;                            /* tema fosc: la pantalla s'inverteix en acabar de dibuixar */
 /* Píndola amb ombra (o plena amb el color d'accent): la forma comuna de botons i botons rodons. */
@@ -94,10 +95,30 @@ static void si_av_d(int x, int y, int w, int h, int fg) {
   ic_path(IC_BELL, x - ICH / 8, y + (h - ICH * 5 / 4) / 2, ICH * 5 / 4, 2.2, fg, PAL(P_BG));
   SetFont(fSmall, fg); DrawTextRect(x + ICH + U / 4, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
 }
-static int si_net_w(int h) { (void)h; return netAct ? ICH * 9 / 10 : 0; }
-static void si_net_d(int x, int y, int w, int h, int fg) { ic_spinner(x + w / 2, y + h / 2, w / 2, fg, PAL(P_SUB), PAL(P_SHADOW)); }
+static int jobs_progress(void);
+/* Xarxa: amb feines a la cua, fletxa i barra de progrés; amb una descàrrega síncrona, el cercle. */
+/* Apps obertes: icona i nombre; en tocar-la, la llista. */
+static int open_count(void);
+static int si_open_w(int h) { char t[8]; int n = open_count(); (void)h; if (!n) return 0; snprintf(t, sizeof(t), "%d", n); SetFont(fSmall, PAL(P_FG)); return ICH + U / 6 + StringWidth(t); }
+static void si_open_d(int x, int y, int w, int h, int fg) {
+  char t[8]; (void)w; snprintf(t, sizeof(t), "%d", open_count());
+  ic_path(IC_APPS, x, y + (h - ICH) / 2, ICH, 2.2, fg, PAL(P_BG));
+  SetFont(fSmall, fg); DrawTextRect(x + ICH + U / 6, y, StringWidth(t) + 2, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
+}
+static int si_net_w(int h) { (void)h; if (jobs_progress() >= 0) return ICH * 3; return netAct ? ICH * 9 / 10 : 0; }
+static void si_net_d(int x, int y, int w, int h, int fg) {
+  int p = jobs_progress();
+  if (p >= 0) {
+    int bw = ICH * 2 - U / 4, bh = ICH / 3 > 6 ? ICH / 3 : 6, bx = x + ICH + U / 4, by = y + (h - bh) / 2;
+    ic_path(IC_DOWNLOAD, x, y + (h - ICH) / 2, ICH, 2.4, fg, PAL(P_BG));
+    rfill(bx, by, bw, bh, bh / 2, PAL(P_SHADOW));
+    if (p <= 100 && p * bw / 100 > bh) rfill(bx, by, p * bw / 100, bh, bh / 2, fg);
+    return;
+  }
+  ic_spinner(x + w / 2, y + h / 2, w / 2, fg, PAL(P_SUB), PAL(P_SHADOW));
+}
 static int status_modules(const StatusItem **out, int max);
-#define NSYS 5
+#define NSYS 6
 /* Geometria i estat de cada peça de la barra: permet repintar i actualitzar només la peça que canvia. */
 static int sbX[40], sbW[40], sbN, sbSig[NSYS], sbR0;
 static int sb_sig(int i) {
@@ -106,12 +127,13 @@ static int sb_sig(int i) {
     case 0: return sb_on_desk() ? (int)(time(NULL) / 86400 % 1000000) : (int)(time(NULL) / 60 % 1000000);
     case 1: return batt_pct() * 2 + (IsCharging() ? 1 : 0);
     case 2: n = QueryNetwork(); return wifi_level() * 4 + ((n & NET_WIFI) ? 1 : 0) + ((n & NET_WIFIREADY) ? 2 : 0);
-    case 3: return netAct;
-    default: return avisos_unread();
+    case 3: { int p = jobs_progress(); return netAct * 1000 + (p < 0 ? 999 : p / 10); }
+    case 4: return avisos_unread();
+    default: return open_count();
   }
 }
 static void statusbar(int withHits) {
-  static const StatusItem SYS[NSYS] = { { "hora", si_time_w, si_time_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "xarxa", si_net_w, si_net_d }, { "avisos", si_av_w, si_av_d } };
+  static const StatusItem SYS[NSYS] = { { "hora", si_time_w, si_time_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "xarxa", si_net_w, si_net_d }, { "avisos", si_av_w, si_av_d }, { "obertes", si_open_w, si_open_d } };
   const StatusItem *list[40]; int n = 0, i, x = SW - U / 2, gap = U * 7 / 10, tw;
   for (i = 0; i < NSYS; i++) list[n++] = &SYS[i];
   n += status_modules(list + n, 40 - n);
@@ -128,12 +150,16 @@ static void statusbar(int withHits) {
     if (x - w < sbR0) break;
     x -= w; sbX[i] = x; sbW[i] = w; list[i]->draw(x, 0, w, SB, PAL(P_FG));
     if (i == 4 && withHits) add_hit(x - gap / 2, 0, w + gap, SB, A_AVISOS, 0);
+    if (i == 5 && withHits) add_hit(x - gap / 2, 0, w + gap, SB, A_CFG_GO, V_OPEN);
     x -= gap;
   }
 }
 /* Repinta la barra a la memòria i actualitza la pantalla només a les peces que han canviat (cap refresc si no ha canviat res).
    Si una peça canvia d'amplada i la resta es desplaça, s'actualitza tota la zona dreta. */
-static void sb_refresh(void) {
+static void pane_leave(void); static void pane_enter(int p);
+static void sb_refresh_(void);
+static void sb_refresh(void) { int inp = inPane; if (inp >= 0) pane_leave(); sb_refresh_(); if (inp >= 0) pane_enter(inp); }
+static void sb_refresh_(void) {
   int oSig[NSYS], oX[40], oW[40], oN = sbN, i, lay = 0, x0 = SW, x1 = 0, ch = 0;
   memcpy(oSig, sbSig, sizeof(oSig)); memcpy(oX, sbX, sizeof(oX)); memcpy(oW, sbW, sizeof(oW));
   statusbar(0);
@@ -156,12 +182,14 @@ static void draw(int full);
 static int tick_redraw(void);
 static int desk_tick(void);
 static void avisos_poll(void);
+static void bg_tick(void);
 static void clock_tick(void) {
   time_t now = time(NULL);
   avisos_poll();
   if (tick_redraw()) { if (!desk_tick()) draw(0); }
   else sb_refresh();
-  SetWeakTimer("busamb_clock", clock_tick, (int)(61 - now % 60) * 1000);
+  bg_tick();
+  SetWeakTimer("escriptori_clock", clock_tick, (int)(61 - now % 60) * 1000);
 }
 /* Botó rodó (contorn o ple) i xebró; dir = -1 esquerra, 1 dreta. */
 /* Botó rodó amb una icona del prototip. state: 0 = normal (blanc amb ombra), 1 = ple (accent), 2 = inactiu (pla, gris). */
@@ -202,7 +230,9 @@ static void footer(int page) {
   if (page < pages - 1) add_hit(SW - SW / 3, y - U / 4, SW / 3, d + U / 2, A_NEXT, 0);
 }
 static char gk[NOTELEN]; static void (*askFn)(const char *);
+static int uiModal;                     /* teclat o diàleg del sistema obert: les feines de fons no redibuixen */
 static void on_ask(char *text) {
+  uiModal = 0;
   if (text) {
     char *s = text, *p; size_t n;
     while (*s == ' ') s++;
@@ -213,12 +243,12 @@ static void on_ask(char *text) {
   draw(1);
 }
 static void ask(const char *title, const char *initial, void (*fn)(const char *)) {
-  askFn = fn; snprintf(gk, sizeof(gk), "%s", initial ? initial : "");
+  askFn = fn; uiModal = 1; snprintf(gk, sizeof(gk), "%s", initial ? initial : "");
   OpenKeyboard(title, gk, NOTELEN - 20, KBD_NORMAL, on_ask);
 }
 static void (*confFn)(void);
-static void on_conf(int b) { if (b == 1 && confFn) confFn(); draw(1); }
-static void confirm(const char *title, const char *text, const char *yes, void (*fn)(void)) { confFn = fn; Dialog(ICON_QUESTION, title, text, yes, "Cancel·la", on_conf); }
+static void on_conf(int b) { uiModal = 0; if (b == 1 && confFn) confFn(); draw(1); }
+static void confirm(const char *title, const char *text, const char *yes, void (*fn)(void)) { confFn = fn; uiModal = 1; Dialog(ICON_QUESTION, title, text, yes, "Cancel·la", on_conf); }
 /* ═════════════ Apps instal·lades (carpeta «applications») ═════════════ */
 #define APPDIR FLASHDIR "/applications"
 static char extApps[40][200]; static int nExt; static char selfName[200] = "Escriptori.app";

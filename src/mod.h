@@ -11,7 +11,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#define ESC_API 5                  /* 3 = notify, status_changed; 4 = front, on_unload; 5 = paleta (temes), icon_fg/bg, update. Els paquets declaren ESC_API_MIN i comproven H->api */
+#define ESC_API 6                  /* 3 = notify, status_changed; 4 = front, on_unload; 5 = paleta, icon_fg/bg, update; 6 = oy (pantalla dividida), fetch, bg_register, busy. Els paquets declaren ESC_API_MIN i comproven H->api */
 #define ESC_API_MIN 2
 #define MOD_TICK 1                 /* el paquet vol redibuixar-se cada minut */
 #define NOTELEN 400
@@ -43,6 +43,14 @@ typedef struct Host {
   const int *pal;                                                        /* paleta del tema (P_BG, P_CARD...): fes-la servir amb PAL(i) */
   int icon_fg, icon_bg;                                                  /* colors amb què el sistema vol la icona del paquet (ICON_FG, ICON_BG) */
   void (*update)(int x, int y, int w, int h);                            /* actualització parcial (amb el tema fosc, inverteix la zona abans) */
+  /* només si host->api >= 6 */
+  int oy;                                                                /* desplaçament vertical del dibuix (pantalla dividida): l'apliquen les macros de dibuix */
+  int (*fetch)(const char *url, const char *title, void (*cb)(void *ctx, char *data, int len), void *ctx);
+      /* descàrrega en segon pla. cb es crida al fil principal, potser abans que fetch torni; data és NULL si ha fallat i
+         el sistema l'allibera després de cb. Retorna 0 si s'ha posat a la cua. Si el paquet es descarrega, cb no es crida. */
+  void (*bg_register)(const char *id, const char *title, int every_min, void (*start)(void));
+      /* sincronització automàtica: start() es crida al fil principal quan toca (i amb «Sincronitza ara»); hi pots cridar fetch */
+  void (*busy)(const char *id, const char *state);                       /* el paquet fa feina de fons (p. ex. un servidor) o ja no (NULL): surt al monitor */
 } Host;
 /* Ranura de la barra d'estat: un indicador petit. width() retorna l'amplada en píxels (0 = ara no es mostra);
    draw() el dibuixa dins el rectangle x,y,w,h amb el color fg sobre el fons PAL(P_BG) (des de l'API 5; abans, la barra era negra).
@@ -81,6 +89,21 @@ static int ICON_FG = BLACK, ICON_BG = WHITE;
 #define PAL(i) (escPal[i])
 #define SB_BG PAL(P_BG)
 #endif
+/* Pantalla dividida: el sistema fa dibuixar cada panell desplaçat ESC_OY píxels avall, amb SB = 0 i SH = l'alçada del
+   panell. Aquestes macros apliquen el desplaçament a totes les funcions de dibuix; el codi del paquet no canvia. */
+#ifdef ESC_MODULE
+#define ESC_OY ((H && H->api >= 6) ? H->oy : 0)
+#else
+static int escOY;
+#define ESC_OY escOY
+#endif
+#define FillArea(x, y, w, h, c) (FillArea)((x), (y) + ESC_OY, (w), (h), (c))
+#define DrawRect(x, y, w, h, c) (DrawRect)((x), (y) + ESC_OY, (w), (h), (c))
+#define DrawLine(x1, y1, x2, y2, c) (DrawLine)((x1), (y1) + ESC_OY, (x2), (y2) + ESC_OY, (c))
+#define DrawPixel(x, y, c) (DrawPixel)((x), (y) + ESC_OY, (c))
+#define DrawBitmap(x, y, b) (DrawBitmap)((x), (y) + ESC_OY, (b))
+#define InvertArea(x, y, w, h) (InvertArea)((x), (y) + ESC_OY, (w), (h))
+#define DrawTextRect(x, y, w, h, s, f) (DrawTextRect)((x), (y) + ESC_OY, (w), (h), (s), (f))
 /* ───────────── sistema de disseny ─────────────
    Formes simples sobre fons blanc: targetes de cantonades arrodonides, icones de línia pròpies. */
 static UNUSED void rfill(int x, int y, int w, int h, int r, int col) {

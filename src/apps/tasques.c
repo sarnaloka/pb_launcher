@@ -67,3 +67,5 @@ static void mod_open(View *v) {
 }
 static Module M = { ESC_API_MIN, "tasques", "Tasques", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 1, SI, 1, WG };
 __attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }
+/* Es pot obrir en un panell de la pantalla dividida (el dibuix fa servir SB, SH, TOP i BOTTOM). */
+__attribute__((visibility("default"))) const int escriptori_split = 1;

@@ -91,6 +91,30 @@ static void rss_refresh(void) {
     H->notify("Notícies", "Notícies actualitzades", t);
   }
 }
+/* Actualització en segon pla (API 6): una descàrrega per canal; en acabar totes, es desa i s'avisa. */
+static int bgPend, bgOk, bgNew, bgShow;
+static void rss_bg_finish(void) {
+  if (bgOk) {
+    st_save(&news);
+    if (bgNew > 0 && H->notify) { char t[80]; snprintf(t, sizeof(t), bgNew == 1 ? "%d titular nou." : "%d titulars nous.", bgNew); H->notify("Notícies", "Notícies actualitzades", t); }
+  } else if (bgShow) say("No s'ha pogut descarregar cap canal. Comprova el Wi-Fi.");
+  if (bgShow && !strcmp(H->front(), "noticies")) H->redraw(0);
+  bgShow = 0;
+}
+static void rss_bg_done(void *ctx, char *b, int len) {
+  (void)ctx; (void)len;
+  if (b) { if (!bgOk) st_clear(&news); bgOk++; bgNew += rss_parse(b); }
+  if (--bgPend == 0) rss_bg_finish();
+}
+static void rss_bg(void) {
+  int i;
+  if (bgPend) return;                               /* ja n'hi ha una en marxa */
+  feeds_load(); st_load(&news);
+  bgOk = bgNew = 0; bgPend = feeds.n + 1;           /* +1: no s'acaba abans d'haver-les posat totes a la cua */
+  for (i = 0; i < feeds.n; i++) { char t[100]; snprintf(t, sizeof(t), "Notícies · canal %d", i + 1); H->fetch(feeds.it[i], t, rss_bg_done, NULL); }
+  if (--bgPend == 0) rss_bg_finish();
+}
+static void rss_bg_auto(void) { rss_bg(); }
 static void v_rss(View *v) {
   int y = TOP, bh = 2 * U + U / 4, rh = 2 * U + U * 3 / 4, per, i, bw = (SW - U - U / 3) / 2; char sub[64], title[400];
   feeds_load(); st_load(&news);
@@ -164,7 +188,7 @@ static void mod_draw(View *v) {
 static void mod_action(View *v, int a, int arg) {
   (void)v; (void)arg;
   switch (a) {
-    case A_RSS_REFRESH: rss_refresh(); v->page = 0; draw(1); break;
+    case A_RSS_REFRESH: if (H->api >= 6 && H->fetch) { bgShow = 1; rss_bg(); break; } rss_refresh(); v->page = 0; draw(1); break;
     case A_RSS_OPEN: push(V_RSSITEM, arg, 0, 0, NULL); break;
     case A_RSS_FEEDS: push(V_FEEDS, 0, 0, 0, NULL); break;
     case A_FEED_ADD: ask("Adreça del canal RSS", "https://", feed_add); break;
@@ -175,4 +199,8 @@ static void mod_open(View *v) {
   (void)v;
 }
 static Module M = { ESC_API_MIN, "noticies", "Notícies", 0, mod_icon, mod_draw, mod_action, NULL, mod_open, 0, NULL, 1, WG };
-__attribute__((visibility("default"))) Module *escriptori_module(const Host *h) { H = h; return &M; }
+__attribute__((visibility("default"))) Module *escriptori_module(const Host *h) {
+  H = h;
+  if (h->api >= 6 && h->bg_register) h->bg_register("noticies", "Notícies", 180, rss_bg_auto);
+  return &M;
+}

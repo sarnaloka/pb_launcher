@@ -227,7 +227,7 @@ static int command(Sess *s, char *ln) {
    Cada 0,5 s es miren les connexions. Si hi ha activitat, es continua atenent fins que el client calla una estona
    (màxim 3 s seguits, o el que duri una transferència), perquè connectar-se no trigui segons. */
 static void ftp_poll(void);
-static void srv_stop(void) { int i; ClearTimer(ftp_poll); for (i = 0; i < MAXS; i++) sess_close(&ss[i]); if (srv >= 0) close(srv); srv = -1; }
+static void srv_stop(void) { int i; if (srv >= 0 && H->api >= 6 && H->busy) H->busy("ftp", NULL); ClearTimer(ftp_poll); for (i = 0; i < MAXS; i++) sess_close(&ss[i]); if (srv >= 0) close(srv); srv = -1; }
 static void srv_start(void) {
   struct sockaddr_in a; int s, one = 1, i;
   if (srv >= 0 || H->api < 4) return;
@@ -240,6 +240,7 @@ static void srv_start(void) {
   if (bind(s, (struct sockaddr *)&a, sizeof(a)) < 0 || listen(s, 4) < 0 || fcntl(s, F_SETFL, O_NONBLOCK) < 0) { close(s); return; }
   srv = s;
   SetWeakTimer("ftp_poll", ftp_poll, 500);
+  if (H->api >= 6 && H->busy) H->busy("ftp", "servidor FTP al port 2121");
 }
 static void on_unload(void) { srv_stop(); }
 static int nsess(void) { int i, n = 0; for (i = 0; i < MAXS; i++) if (ss[i].fd >= 0 && ss[i].auth) n++; return n; }

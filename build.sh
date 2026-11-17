@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT/src"
 CC=arm-obreey-linux-gnueabi-gcc
 F="-O2 -Wall -Wextra -Wno-format-truncation -Wno-misleading-indentation -fsigned-char -march=armv7-a -mfpu=neon -mfloat-abi=softfp -DPLATFORM_FC -I."
-$CC $F -s -o "$ROOT/Escriptori.app" base.c -linkview -lm -ldl
+$CC $F -s -o "$ROOT/Escriptori.app" base.c -linkview -lm -ldl -lpthread
 mkdir -p "$ROOT/packages"
 for f in apps/*.c; do
   id=$(basename "$f" .c); extra=""
