@@ -4,8 +4,8 @@
 #include <sys/statvfs.h>
 #include <limits.h>
 
-#define APP_BUILD 8
-#define APP_VERNAME "2.1"
+#define APP_BUILD 9
+#define APP_VERNAME "2.2"
 #define UPD_BASE "https://raw.githubusercontent.com/sarnaloka/pb_launcher/main/"
 #define SYSDIR FLASHDIR "/system/escriptori"
 #define PKGDIR SYSDIR "/packages"

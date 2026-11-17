@@ -1,5 +1,5 @@
-8
-157628
-a91978eb
-Versió 2.1: permet paquets amb feina de fons, com el nou «Xat» per Wi-Fi (instal·la'l des de Paquets). Després d'actualitzar, surt i torna a obrir l'Escriptori.
-2.1
+9
+170052
+164fe044
+Versió 2.2: interfície nova amb icones noves, tema clar o fosc, tria de font i mida del text, i fons de l'inici (Configuració › Aparença). Després d'actualitzar, surt i torna a obrir l'Escriptori, i actualitza tots els paquets.
+2.2
