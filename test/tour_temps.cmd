@@ -13,8 +13,8 @@ tap dj. 19
 shot t5.txt
 key 25
 shot t5b.txt
-xy 62 149
-xy 1010 302
+xy 62 237
+xy 1010 390
 kbd Girona
 tap Afegeix una ciutat
 shot t6.txt
@@ -27,5 +27,5 @@ shot t9.txt
 tap Fet
 tap Barcelona
 shot t10.txt
-xy 1010 149
+xy 1010 237
 shot t11.txt

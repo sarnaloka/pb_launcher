@@ -19,7 +19,7 @@ tap 9
 tap DEL
 tap ±
 tap %
-xy 1010 149
+xy 1010 237
 tapp Notes
 kbd Comprar la T-usual abans de dijous
 tap Nova nota
@@ -33,11 +33,11 @@ tap Edita
 dlg 1
 tap Esborra
 shot d5.txt
-xy 62 149
-xy 62 149
+xy 62 237
+xy 62 237
 tapp Rellotge
 shot d6.txt
-xy 1010 149
+xy 1010 237
 tapp Bus AMB
 shot d7.txt
 kbd museu viver

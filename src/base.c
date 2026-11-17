@@ -28,6 +28,7 @@ static Hit hits[MAXHITS];
 static int nhits;
 static int SW, SH, U, SB;
 static ifont *fTitle, *fBold, *fText, *fSmall, *fBig, *fHuge;
+static ifont *fSbar;                             /* hora de la barra d'estat */
 static int pages = 1;
 /* L'actualitzador de la compilació 1 rebutja binaris de menys de 100 kB. Aquest farciment fa que la
    transició 1 -> 0.8 sigui possible; es pot treure quan ja no quedi cap lector amb la compilació 1. */
@@ -103,15 +104,16 @@ static void font_names(char **L, const char *fam, char *reg, char *bold, int sz)
 static ifont *font_open(const char *name, const char *fallback, int size) { ifont *f = OpenFont(name, size, 1); return f ? f : OpenFont(fallback, size, 1); }
 static void fonts_apply(void) {
   static const int K[4] = { 88, 100, 112, 126 };
-  ifont *old[8]; char r[140], b[140]; int k, i;
+  ifont *old[9]; char r[140], b[140]; int k, i;
   cfg_load(); k = K[cfgSize];
-  old[0] = fTitle; old[1] = fBold; old[2] = fText; old[3] = fSmall; old[4] = fBig; old[5] = fHuge; old[6] = fHead; old[7] = fClock;
+  old[0] = fTitle; old[1] = fBold; old[2] = fText; old[3] = fSmall; old[4] = fBig; old[5] = fHuge; old[6] = fHead; old[7] = fClock; old[8] = fSbar;
   font_names(cfgFont[0] ? EnumFonts() : NULL, cfgFont, r, b, sizeof(r));
   fTitle = font_open(b, DEFAULTFONTB, U * 11 * k / 1000); fBold = font_open(b, DEFAULTFONTB, U * 9 * k / 1000);
   fText = font_open(r, DEFAULTFONT, U * 9 * k / 1000); fSmall = font_open(r, DEFAULTFONT, U * 7 * k / 1000);
   fBig = font_open(b, DEFAULTFONTB, U * 12 * k / 1000); fHuge = font_open(b, DEFAULTFONTB, U * 3);
   fHead = font_open(b, DEFAULTFONTB, U * 14 * (100 + (k - 100) / 2) / 1000); fClock = font_open(b, DEFAULTFONTB, U * 9 / 2);
-  for (i = 0; i < 8; i++) if (old[i]) CloseFont(old[i]);
+  fSbar = font_open(r, DEFAULTFONT, U * 16 / 10);
+  for (i = 0; i < 9; i++) if (old[i]) CloseFont(old[i]);
 }
 static void esc_copy_file(const char *a, const char *b) {
   FILE *f = fopen(a, "rb"), *g; char buf[16384]; size_t n;
@@ -1884,7 +1886,7 @@ static int handler(int type, int par1, int par2) {
   int i;
   switch (type) {
     case EVT_INIT:
-      SW = ScreenWidth(); SH = ScreenHeight(); U = SW / 27; if (U < 16) U = 16; SB = U * 9 / 4;
+      SW = ScreenWidth(); SH = ScreenHeight(); U = SW / 27; if (U < 16) U = 16; SB = U * 9 / 2;
       SetPanelType(PANEL_DISABLED);
       SH -= PanelHeight();
       scrSB = SB; scrSH = SH; inPane = -1;

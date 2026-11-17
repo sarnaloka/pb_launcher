@@ -6,7 +6,7 @@
 tap Paquets
 tap Actualitza el catàleg
 tap Instal·la-ho tot
-xy 1010 149
+xy 1010 237
 tapp Xat
 shot x1.txt
 sleep 1500

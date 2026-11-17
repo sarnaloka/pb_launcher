@@ -79,8 +79,8 @@
 #define IC_WIFI_A1     "M9.2 16.2a4 4 0 0 1 5.6 0M12 19.5h.01"
 #define IC_WIFI        IC_WIFI_A3 IC_WIFI_A2 IC_WIFI_A1
 #define IC_WIFI_X      "M2 2.5l4 4M6 2.5l-4 4"
-#define IC_BATT_H      "M4 8h14a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 4 8zM22 11v2"
-#define IC_BOLT        "M12 9.5l-2.5 2.5h4L11 14.5"
+#define IC_BATT_H      "M6.5 7h9a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 5 15.5v-7A1.5 1.5 0 0 1 6.5 7zM19.5 10.5v3"
+#define IC_BOLT        "M12 8.5l-2.5 3.5h4L11 15.5"
 #define IC_SYNC        "M19.5 10a7.7 7.7 0 0 0-14-2.5M4.5 14a7.7 7.7 0 0 0 14 2.5M5.5 3.5v4h4M18.5 20.5v-4h-4"
 #define IC_SEARCH      "M10.5 4.5a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM15 15l5 5"
 #define IC_DOT         "M18 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"

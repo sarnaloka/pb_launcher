@@ -46,20 +46,21 @@ static void si_time_txt(char *t, int sz) {
 }
 /* Barra d'estat estil Kobo (2.3): l'hora a l'esquerra i, a la dreta, només icones del prototip a una mateixa mida
    (SBI, el 24 del viewBox) i amb traç d'1,5: avisos (només si n'hi ha), llum, Wi-Fi, bateria, sincronització i cerca. */
-#define SBI (SB * 52 / 100)
-#define SBGAP (SBI * 20 / 24)
+#define SBI (SB / 2)                           /* icones del doble de mida que a la 2.3 */
+#define SBM ((SB - SBI) / 2)                   /* marge: el mateix a dalt, a baix, a l'esquerra i a la dreta */
+#define SBGAP (SBI * 10 / 24)
 #define SBSW 1.5
-static int si_time_w(int h) { char t[40]; (void)h; si_time_txt(t, sizeof(t)); SetFont(fText, PAL(P_FG)); return StringWidth(t) + U / 2; }
+static int si_time_w(int h) { char t[40]; (void)h; si_time_txt(t, sizeof(t)); SetFont(fSbar, PAL(P_FG)); return StringWidth(t) + U / 2; }
 static void si_time_d(int x, int y, int w, int h, int fg) {
   char t[40]; si_time_txt(t, sizeof(t));
-  SetFont(fText, fg); DrawTextRect(x, y, w, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
+  SetFont(fSbar, fg); DrawTextRect(x, y, w, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
 }
 static int batt_pct(void) { int p = GetBatteryPower(); return p < 0 ? 0 : p > 100 ? 100 : p; }
-/* Bateria horitzontal: carregant, el llamp; si no, el farciment (13 unitats de llarg com a màxim) segons la càrrega. */
+/* Bateria (més quadrada des de la 2.4): carregant, el llamp; si no, el farciment (8 unitats com a màxim) segons la càrrega. */
 static void batt_icon(int x, int y, int s, int fg, int bg) {
   char fl[80]; IcLayer L[2] = { { IC_BATT_H, fg, 0 }, { NULL, fg, 1 } };
   if (IsCharging()) { L[1].d = IC_BOLT; L[1].fill = 0; }
-  else { double w = 13.0 * batt_pct() / 100; if (w < 1) w = 1; snprintf(fl, sizeof(fl), "M4.5 10h%.2fv4h-%.2fz", w, w); L[1].d = fl; }
+  else { double w = 8.0 * batt_pct() / 100; if (w < 0.8) w = 0.8; snprintf(fl, sizeof(fl), "M7 9h%.2fv6h-%.2fz", w, w); L[1].d = fl; }
   ic_layers(L, 2, x, y, s, SBSW, bg);
 }
 static int si_batt_w(int h) { (void)h; return SBI; }
@@ -116,15 +117,15 @@ static int sb_sig(int i) {
 static int quick_open(void);
 static void statusbar(int withHits) {
   static const StatusItem SYS[NSYS] = { { "hora", si_time_w, si_time_d }, { "cerca", si_find_w, si_find_d }, { "sincronitza", si_sync_w, si_sync_d }, { "bateria", si_batt_w, si_batt_d }, { "wifi", si_wifi_w, si_wifi_d }, { "llum", si_sun_w, si_sun_d }, { "avisos", si_av_w, si_av_d } };
-  const StatusItem *list[40]; int n = 0, i, x = SW - U * 3 / 4, tw;
+  const StatusItem *list[40]; int n = 0, i, x = SW - SBM, tw;
   for (i = 0; i < NSYS; i++) list[n++] = &SYS[i];
   n += status_modules(list + n, 40 - n);
   for (i = 0; i < 40; i++) { sbX[i] = 0; sbW[i] = 0; }
   for (i = 0; i < NSYS; i++) sbSig[i] = sb_sig(i);
   FillArea(0, 0, SW, SB, PAL(P_BG));
   /* la barra només mostra estat; tota la barra obre el tauler ràpid */
-  tw = si_time_w(SB); sbX[0] = U * 3 / 4; sbW[0] = tw; si_time_d(U * 3 / 4, 0, tw, SB, PAL(P_FG));
-  sbN = n; sbR0 = U * 3 / 4 + tw + U;
+  tw = si_time_w(SB); sbX[0] = SBM; sbW[0] = tw; si_time_d(SBM, 0, tw, SB, PAL(P_FG));
+  sbN = n; sbR0 = SBM + tw + U;
   if (withHits) add_hit(0, 0, SW, SB, A_QUICK, 0);
   for (i = 1; i < n; i++) {
     int w = list[i]->width(SB);

@@ -2,7 +2,7 @@
 tap Paquets
 tap Actualitza el catàleg
 tap Instal·la-ho tot
-xy 1010 149
+xy 1010 237
 tapp FTP
 shot f1.txt
 poll
@@ -67,7 +67,7 @@ poll
 sleep 100
 shot f2.txt
 echo ---inici
-xy 1010 149
+xy 1010 237
 poll
 sleep 100
 poll
