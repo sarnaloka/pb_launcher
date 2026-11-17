@@ -5,7 +5,7 @@ notes|Notes|4|Notes curtes desades al lector.
 calculadora|Calculadora|4|Les quatre operacions, percentatge i decimals.
 fitxers|Fitxers|4|Navega per carpetes; obre, mou i esborra fitxers.
 tasques|Tasques|5|Llista de tasques amb caselles.
-conversor|Conversor|4|Longitud, pes, volum i temperatura.
+conversor|Conversor|5|Longitud, pes, volum, temperatura i divises.
 agenda|Agenda|4|Calendari amb esdeveniments per dia.
 sudoku|Sudoku|4|Partides amb solució única que es desen soles.
 buscamines|Buscamines|4|El clàssic, en un taulell de 9 per 9.

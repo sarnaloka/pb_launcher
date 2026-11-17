@@ -25,7 +25,7 @@ tap Esborra les fetes
 xy 1010 149
 tapp Conversor
 kbd 26,2
-xy 500 480
+xy 500 580
 tap milles
 shot q7.txt
 tap Temp.
