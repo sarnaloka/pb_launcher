@@ -1,16 +1,16 @@
 # id|nom|versió|descripció
-busamb|Bus AMB|4|Parades, sortides i horaris del bus metropolità, amb PDF.
-rellotge|Rellotge|4|Hora, data i calendari del mes.
-notes|Notes|4|Notes curtes desades al lector.
-calculadora|Calculadora|4|Les quatre operacions, percentatge i decimals.
-fitxers|Fitxers|4|Navega per carpetes; obre, mou i esborra fitxers.
-tasques|Tasques|5|Llista de tasques amb caselles.
-conversor|Conversor|5|Longitud, pes, volum, temperatura i divises.
-agenda|Agenda|4|Calendari amb esdeveniments per dia.
-sudoku|Sudoku|4|Partides amb solució única que es desen soles.
-buscamines|Buscamines|4|El clàssic, en un taulell de 9 per 9.
-temps|El temps|6|Temps actual, per hores i de 10 dies, amb detalls (UV, vent, sol…) per a les teves ciutats (cal Wi-Fi).
-noticies|Notícies|5|Titulars de canals RSS, desats per llegir sense connexió.
-lector|Lector|4|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
-xat|Xat|2|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
-ftp|FTP|2|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).
+busamb|Bus AMB|5|Parades, sortides i horaris del bus metropolità, amb PDF.
+rellotge|Rellotge|5|Hora, data i calendari del mes.
+notes|Notes|5|Notes curtes desades al lector.
+calculadora|Calculadora|5|Les quatre operacions, percentatge i decimals.
+fitxers|Fitxers|5|Navega per carpetes; obre, mou i esborra fitxers.
+tasques|Tasques|6|Llista de tasques amb caselles.
+conversor|Conversor|6|Longitud, pes, volum, temperatura i divises.
+agenda|Agenda|5|Calendari amb esdeveniments per dia.
+sudoku|Sudoku|5|Partides amb solució única que es desen soles.
+buscamines|Buscamines|5|El clàssic, en un taulell de 9 per 9.
+temps|El temps|7|Temps actual, per hores i de 10 dies, amb detalls (UV, vent, sol…) per a les teves ciutats (cal Wi-Fi).
+noticies|Notícies|6|Titulars de canals RSS, desats per llegir sense connexió.
+lector|Lector|5|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
+xat|Xat|3|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
+ftp|FTP|3|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).

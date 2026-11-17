@@ -1,15 +1,15 @@
-busamb|Bus AMB|4|5076572|43e93693|Parades, sortides i horaris del bus metropolità, amb PDF.
-rellotge|Rellotge|4|13780|42948b5f|Hora, data i calendari del mes.
-notes|Notes|4|17856|a4df91d3|Notes curtes desades al lector.
-calculadora|Calculadora|4|13836|ed0984cc|Les quatre operacions, percentatge i decimals.
-fitxers|Fitxers|4|18572|14d1dacb|Navega per carpetes; obre, mou i esborra fitxers.
-tasques|Tasques|5|17920|c2d8574e|Llista de tasques amb caselles.
-conversor|Conversor|5|18060|8b44ea0c|Longitud, pes, volum, temperatura i divises.
-agenda|Agenda|4|22032|162d7a78|Calendari amb esdeveniments per dia.
-sudoku|Sudoku|4|17852|96fc7434|Partides amb solució única que es desen soles.
-buscamines|Buscamines|4|13728|ba99d00e|El clàssic, en un taulell de 9 per 9.
-temps|El temps|6|59004|3c287b52|Temps actual, per hores i de 10 dies, amb detalls (UV, vent, sol…) per a les teves ciutats (cal Wi-Fi).
-noticies|Notícies|5|22064|2eb61fc8|Titulars de canals RSS, desats per llegir sense connexió.
-lector|Lector|4|50856|818f6c35|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
-xat|Xat|2|26208|8e9bf161|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
-ftp|FTP|2|30368|78d5d2af|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).
+busamb|Bus AMB|5|5080668|b86a52eb|Parades, sortides i horaris del bus metropolità, amb PDF.
+rellotge|Rellotge|5|13780|dde4ab3f|Hora, data i calendari del mes.
+notes|Notes|5|17856|0b3a8a08|Notes curtes desades al lector.
+calculadora|Calculadora|5|17932|737dc1fc|Les quatre operacions, percentatge i decimals.
+fitxers|Fitxers|5|18572|50d2b545|Navega per carpetes; obre, mou i esborra fitxers.
+tasques|Tasques|6|17920|afe61541|Llista de tasques amb caselles.
+conversor|Conversor|6|18060|9d62bae9|Longitud, pes, volum, temperatura i divises.
+agenda|Agenda|5|22032|fdd5d324|Calendari amb esdeveniments per dia.
+sudoku|Sudoku|5|17852|443affb7|Partides amb solució única que es desen soles.
+buscamines|Buscamines|5|13728|4a0ab547|El clàssic, en un taulell de 9 per 9.
+temps|El temps|7|63100|eacff916|Temps actual, per hores i de 10 dies, amb detalls (UV, vent, sol…) per a les teves ciutats (cal Wi-Fi).
+noticies|Notícies|6|22068|3b10f33d|Titulars de canals RSS, desats per llegir sense connexió.
+lector|Lector|5|54952|9a68fe2e|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
+xat|Xat|3|26208|466e6c98|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
+ftp|FTP|3|34464|36bb6a16|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).
