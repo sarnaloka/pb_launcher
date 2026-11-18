@@ -7,6 +7,7 @@
 #include <time.h>
 #include <limits.h>
 #include <sys/stat.h>
+#include <stdbool.h>
 typedef struct ifont_s { int size, bold, serif; char name[80]; } ifont;
 typedef int (*iv_handler)(int type, int par1, int par2);
 typedef void (*iv_keyboardhandler)(char *text);
@@ -19,6 +20,12 @@ typedef void (*iv_dialoghandler)(int button);
 #define EVT_SHOW 23
 #define EVT_KEYPRESS 25
 #define EVT_POINTERUP 29
+#define EVT_POINTERDOWN 30
+#define EVT_POINTERMOVE 31
+#define EVT_POINTERLONG 34
+#define EVT_POINTERHOLD 35
+#define EVT_POINTERDRAG 44
+#define EVT_MTSYNC 39
 #define IV_KEY_PREV 0x18
 #define IV_KEY_NEXT 0x19
 #define IV_KEY_BACK 0x1b
@@ -36,6 +43,14 @@ int GetFrontlightState(void); void SetFrontlightState(int s); int GetFrontlightE
 #define EVT_FOREGROUND 151
 #define EVT_BACKGROUND 152
 typedef void (*iv_timerproc)();
+typedef void (*iv_timerprocEx)(void *context);
+void SetWeakTimerEx(const char *name, iv_timerprocEx tp, void *context, int ms);
+/* Multitàctil (el simulador en té un dit, amb les ordres «mt x y» i «mtup») */
+typedef struct iv_mtinfo_s { bool active; int x, y, pressure; int devtype; long long timems; } iv_mtinfo;
+iv_mtinfo *GetTouchInfoI(unsigned int index);
+void DrawCircle(int x0, int y0, int radius, int color);
+void DynamicUpdateA2(int x, int y, int w, int h); int IsInA2Update(void);
+void DitherAreaPattern2Level(int dx, int dy, int dw, int dh);
 char *GetDeviceModel(void); char *GetSerialNumber(void); char *GetSoftwareVersion(void);
 int GetBatteryPower(void); int IsCharging(void); int QueryNetwork(void); int GetNetSignalQuality(void);
 void SetHardTimer(const char *n, iv_timerproc tp, int ms);
@@ -53,6 +68,8 @@ void SetWeakTimer(const char *name, iv_timerproc tp, int ms); void ClearTimer(iv
 #define DOTS 512
 #define DEFAULTFONT "regular"
 #define DEFAULTFONTB "bold"
+#define DEFAULTFONTM "mono"
+#define DITHER_PATTERN 1
 void InkViewMain(iv_handler h); void CloseApp(void); int ScreenWidth(void); int ScreenHeight(void);
 void ClearScreen(void); void DrawLine(int, int, int, int, int); void DrawRect(int, int, int, int, int); void FillArea(int, int, int, int, int);
 typedef struct ibitmap_s { unsigned short width, height, depth, scanline; unsigned char data[]; } ibitmap;

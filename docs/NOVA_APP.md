@@ -146,3 +146,14 @@ Tot això només existeix si `H->api >= 6`; comprova-ho abans d'usar-ho.
   `SB` val 0 i `H->oy` és on comença verticalment. `FillArea`, `DrawRect`, `DrawLine`, `DrawPixel`, `DrawBitmap`,
   `InvertArea` i `DrawTextRect` ja hi sumen `H->oy`, i `header()` i els tocs també el tenen en compte. Dibuixa sempre
   entre 0 i `SH`. Si crides directament una altra funció de dibuix de l'InkView, suma-hi `ESC_OY`.
+
+## Exportacions opcionals (ESC_API 7)
+
+- `int escriptori_event(int type, int par1, int par2)`: el paquet rep els tocs directes (`EVT_POINTERDOWN`, `UP`, `DRAG`,
+  `MOVE`, `LONG`, `HOLD` i el multitàctil `EVT_MTSYNC`) quan és a primer pla, abans que el sistema miri els botons. Si torna
+  1, el sistema no el tracta. No arriba res amb el tauler ràpid obert, a la pantalla dividida ni amb un diàleg.
+  Deixa passar (torna 0) els tocs de la capçalera (`y < TOP`), si no, no es podrà sortir.
+- `const int escriptori_reload = 1;`: en tancar-lo des d'«Apps obertes» (o el monitor), el sistema el descarrega i el torna
+  a carregar, perquè la propera vegada comenci amb les variables netes. Allibera la memòria a `on_unload`.
+- Un paquet que ho necessiti declara `api = 7` al `Module`: un sistema anterior no el carregarà.
+- Vegeu `src/apps/doom.c`.

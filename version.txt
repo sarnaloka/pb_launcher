@@ -1,5 +1,5 @@
 11
 211096
-e0a04500
+4d422f05
 Versió 2.3.1: barra d'estat més fidel a la de Kobo (icones grises de traç prim, ben repartides, i bateria nova). Després d'actualitzar, surt i torna a obrir l'Escriptori.
 2.3.1

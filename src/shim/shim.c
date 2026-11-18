@@ -24,12 +24,20 @@ char **EnumFonts(void) {
 }
 static Op *add(char k, int x, int y, int w, int h, int color);
 void DrawBitmap(int x, int y, const ibitmap *b) {
-  Op *o = add('B', x, y, b->width, b->height, 0); int i, j; static const char *hx = "0123456789abcdef";
+  Op *o = NULL; int i, j; static const char *hx = "0123456789abcdef";
+  if (b->width * b->height >= 100000)            /* només si no hi ha cap inversió després (l'ordre importa) */
+    for (i = nops - 1; i >= 0 && ops[i].kind != 'I'; i--) if (ops[i].kind == 'B' && ops[i].x == x && ops[i].y == y && ops[i].w == b->width && ops[i].h == b->height) { o = &ops[i]; free(o->data); o->data = NULL; break; }
+  if (!o) o = add('B', x, y, b->width, b->height, 0);
   o->data = malloc((size_t)b->width * b->height * 2 + 1);
   for (j = 0; j < b->height; j++) for (i = 0; i < b->width; i++) { unsigned char v = b->data[j * b->scanline + i]; o->data[(j * b->width + i) * 2] = hx[v >> 4]; o->data[(j * b->width + i) * 2 + 1] = hx[v & 15]; }
   o->data[(size_t)b->width * b->height * 2] = 0;
 }
 void DrawPixel(int x, int y, int c) { add('F', x, y, 1, 1, c); }
+void DrawCircle(int x0, int y0, int r, int c) { add('R', x0 - r, y0 - r, 2 * r, 2 * r, c); }
+void DynamicUpdateA2(int x, int y, int w, int h) { PartialUpdate(x, y, w, h); } int IsInA2Update(void) { return 0; }
+void DitherAreaPattern2Level(int dx, int dy, int dw, int dh) { (void)dx; (void)dy; (void)dw; (void)dh; }
+static iv_mtinfo simMt[2];
+iv_mtinfo *GetTouchInfoI(unsigned int index) { (void)index; return simMt; }
 /* Escaquer d'un píxel (al lector s'escriu directament al llenç): render.py el dibuixa. */
 void SimChecker(int x, int y, int w, int h) { add('K', x, y, w, h, 0); }
 /* El simulador no té píxels: la captura és un gris pla (l'app la mostra com a miniatura). */
@@ -62,20 +70,24 @@ void SetPanelType(int t) { (void)t; } int PanelHeight(void) { return 0; } int Ge
 /* Temporitzadors: diversos alhora, per nom (com a l'InkView). «tick» executa els que tenen «clock» al nom; «poll», la
    resta. Són d'un sol tret: s'esborren abans de cridar-los i el codi els torna a armar. */
 #define MAXT 16
-static struct { char name[64]; iv_timerproc p; } tms[MAXT];
-static void tm_set(const char *n, iv_timerproc tp) {
+static struct { char name[64]; iv_timerproc p; iv_timerprocEx px; void *ctx; } tms[MAXT];
+#define TM_USED(i) (tms[i].p || tms[i].px)
+static void tm_set2(const char *n, iv_timerproc tp, iv_timerprocEx px, void *ctx) {
   int i, f = -1;
-  for (i = 0; i < MAXT; i++) { if (tms[i].p && !strcmp(tms[i].name, n ? n : "")) { tms[i].p = tp; return; } if (!tms[i].p && f < 0) f = i; }
-  if (f >= 0) { snprintf(tms[f].name, sizeof(tms[f].name), "%s", n ? n : ""); tms[f].p = tp; }
+  for (i = 0; i < MAXT; i++) { if (TM_USED(i) && !strcmp(tms[i].name, n ? n : "")) { tms[i].p = tp; tms[i].px = px; tms[i].ctx = ctx; return; } if (!TM_USED(i) && f < 0) f = i; }
+  if (f >= 0) { snprintf(tms[f].name, sizeof(tms[f].name), "%s", n ? n : ""); tms[f].p = tp; tms[f].px = px; tms[f].ctx = ctx; }
+  else fprintf(stderr, "TOO MANY TIMERS\n");
 }
+static void tm_set(const char *n, iv_timerproc tp) { tm_set2(n, tp, NULL, NULL); }
 static void tm_run(int clock) {
-  iv_timerproc run[MAXT]; int i, n = 0;
-  for (i = 0; i < MAXT; i++) if (tms[i].p && (strstr(tms[i].name, "clock") != NULL) == clock) { run[n++] = tms[i].p; tms[i].p = NULL; }
-  for (i = 0; i < n; i++) run[i]();
+  iv_timerproc run[MAXT]; iv_timerprocEx runx[MAXT]; void *ctx[MAXT]; int i, n = 0;
+  for (i = 0; i < MAXT; i++) if (TM_USED(i) && (strstr(tms[i].name, "clock") != NULL) == clock) { run[n] = tms[i].p; runx[n] = tms[i].px; ctx[n] = tms[i].ctx; n++; tms[i].p = NULL; tms[i].px = NULL; }
+  for (i = 0; i < n; i++) { if (run[i]) run[i](); else runx[i](ctx[i]); }
 }
+void SetWeakTimerEx(const char *n, iv_timerprocEx tp, void *context, int ms) { tm_set2(n, NULL, tp, context); if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); }
 void SetWeakTimer(const char *n, iv_timerproc tp, int ms) { tm_set(n, tp); if (ms <= 0 || ms > 61000) fprintf(stderr, "BAD TIMER %d\n", ms); }
 void SetHardTimer(const char *n, iv_timerproc tp, int ms) { SetWeakTimer(n, tp, ms); }
-void ClearTimer(iv_timerproc tp) { int i; for (i = 0; i < MAXT; i++) if (tms[i].p == tp) tms[i].p = NULL; } static void shot(const char *name);
+void ClearTimer(iv_timerproc tp) { int i; for (i = 0; i < MAXT; i++) if (tms[i].p == tp || (tms[i].px && (void *)tms[i].px == (void *)tp)) { tms[i].p = NULL; tms[i].px = NULL; } } static void shot(const char *name);
 void PartialUpdate(int x, int y, int w, int h) { static int n; if (getenv("PULOG")) printf("PU %d %d %d %d\n", x, y, w, h); if (getenv("PUSHOT")) { char fn[64]; snprintf(fn, sizeof(fn), "pu%d.txt", ++n); shot(fn); } }
 int NetConnect(const char *n) { (void)n; return 0; }
 int NetDisconnect(void) { printf("NetDisconnect\n"); return 0; }
@@ -105,6 +117,9 @@ void InkViewMain(iv_handler h) { char ln[300]; H = h; h(EVT_INIT, 0, 0); h(EVT_S
       if (!found) for (i = nops - 1; i >= 0; i--) if (ops[i].kind == 'T' && strstr(ops[i].text, ln + 4)) { found = 1; h(EVT_POINTERUP, ops[i].x + ops[i].w / 2, ops[i].y + ops[i].h / 2); break; }
       if (!found) { printf("NOT FOUND: %s\n", ln + 4); } }
     else if (sscanf(ln, "xy %d %d", &x, &y) == 2) h(EVT_POINTERUP, x, y);
+    else if (sscanf(ln, "mt %d %d", &x, &y) == 2) { simMt[0].active = 1; simMt[0].x = x; simMt[0].y = y; h(EVT_POINTERDOWN, x, y); h(EVT_MTSYNC, 0, 1); }
+    else if (!strcmp(ln, "mtup")) { simMt[0].active = 0; h(EVT_MTSYNC, 0, 0); h(EVT_POINTERUP, simMt[0].x, simMt[0].y); }
+    else if (sscanf(ln, "polls %d", &x) == 1) { for (i = 0; i < x; i++) tm_run(0); }
     else if (sscanf(ln, "key %d", &x) == 1) h(EVT_KEYPRESS, x, 0);
     else if (!strncmp(ln, "kbd ", 4)) snprintf(pendingKbd, sizeof(pendingKbd), "%s", ln + 4);
     else if (sscanf(ln, "dlg %d", &x) == 1) dlgBtn = x;

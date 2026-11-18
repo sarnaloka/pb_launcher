@@ -11,7 +11,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#define ESC_API 6                  /* 3 = notify, status_changed; 4 = front, on_unload; 5 = paleta, icon_fg/bg, update; 6 = oy (pantalla dividida), fetch, bg_register, busy. Els paquets declaren ESC_API_MIN i comproven H->api */
+#define ESC_API 7                  /* 3 = notify, status_changed; 4 = front, on_unload; 5 = paleta, icon_fg/bg, update; 6 = oy (pantalla dividida), fetch, bg_register, busy;
+                                      7 = exportacions escriptori_event i escriptori_reload (vegeu base.c). Els paquets declaren ESC_API_MIN i comproven H->api */
 #define ESC_API_MIN 2
 #define MOD_TICK 1                 /* el paquet vol redibuixar-se cada minut */
 #define NOTELEN 400

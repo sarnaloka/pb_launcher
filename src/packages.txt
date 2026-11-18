@@ -14,3 +14,4 @@ noticies|Notícies|6|Titulars de canals RSS, desats per llegir sense connexió.
 lector|Lector|5|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
 xat|Xat|3|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
 ftp|FTP|3|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).
+doom|Doom|1|El clàssic de tirs (PBDoom), amb controls tàctils. Cal copiar un fitxer WAD a la carpeta «Doom» del lector (serveixen els lliures de Freedoom).

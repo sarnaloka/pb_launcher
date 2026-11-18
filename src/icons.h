@@ -87,5 +87,6 @@
 #define IC_DOT         "M18 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"
 #define IC_CONTRAST_F  "M12 4a8 8 0 0 1 0 16z"
 #define IC_DISC15      "M12-3a15 15 0 1 0 0 30a15 15 0 1 0 0-30z"   /* cercle de fons de 30 (amb marge 3) */
+#define IC_DOOM        "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 2v5M12 17v5M2 12h5M17 12h5M12 11.5v1"   /* punt de mira (Doom) */
 #define IC_CLEAN       "M5 5h14v14H5zM9 15l6-6M12 16l4-4M8 12l4-4"
 #endif

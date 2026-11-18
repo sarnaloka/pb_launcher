@@ -217,7 +217,11 @@ static void upd_region(int x, int y, int w, int h) { if (escDark) InvertArea(x, 
 #include "jobs.h"
 
 /* ───────────── paquets carregats ───────────── */
-typedef struct { void *dl; Module *m; char id[48]; int split; } Loaded;   /* split: el paquet exporta escriptori_split */
+typedef struct { void *dl; Module *m; char id[48]; int split, reload; int (*ev)(int, int, int); } Loaded;
+/* Exportacions opcionals d'un paquet (API 7):
+   escriptori_split  — pot sortir a la pantalla dividida;
+   escriptori_event  — rep els tocs directes (també el multitàctil, EVT_MTSYNC) quan és a primer pla; si torna 1, el sistema no els tracta;
+   escriptori_reload — en tancar-lo des d'«Apps obertes», el sistema el descarrega i el torna a carregar (estat net). */
 #define MAXMODS 64
 static Loaded mods[MAXMODS]; static int nmods;
 static Host host;
@@ -234,7 +238,8 @@ static int mod_load(const char *id) {
   if (!m || m->api < ESC_API_MIN || m->api > ESC_API || !m->fn_draw || !m->name) { dlclose(dl); return -2; }
   drop_module_views();
   for (i = nmods; i > 0 && strcasecmp(mods[i - 1].m->name, m->name) > 0; i--) mods[i] = mods[i - 1];
-  mods[i].dl = dl; mods[i].m = m; snprintf(mods[i].id, sizeof(mods[i].id), "%s", id); mods[i].split = dlsym(dl, "escriptori_split") != NULL;
+  mods[i].dl = dl; mods[i].m = m; snprintf(mods[i].id, sizeof(mods[i].id), "%s", id); mods[i].split = dlsym(dl, "escriptori_split") != NULL; mods[i].reload = dlsym(dl, "escriptori_reload") != NULL;
+  *(void **)&mods[i].ev = dlsym(dl, "escriptori_event");
   nmods++;
   return 0;
 }
@@ -295,6 +300,15 @@ static ibitmap *pendThumb; static char pendThumbId[48];
 static int open_find(const char *id) { int i; for (i = 0; i < nOpen; i++) if (!strcmp(opened[i].id, id)) return i; return -1; }
 static void open_drop(int k) { if (k < 0 || k >= nOpen) return; free(opened[k].thumb); memmove(&opened[k], &opened[k + 1], sizeof(OpenApp) * (size_t)(nOpen - k - 1)); nOpen--; }
 static void open_forget(int m) { int k; if (m < 0 || m >= nmods) return; while ((k = open_find(mods[m].id)) >= 0) open_drop(k); if (!strcmp(pendThumbId, mods[m].id)) { free(pendThumb); pendThumb = NULL; pendThumbId[0] = 0; } }
+/* Tanca una app oberta. Si el paquet ho demana (escriptori_reload), es torna a carregar perquè la propera vegada comenci net. */
+static void open_close(int k) {
+  char id[48]; int m;
+  if (k < 0 || k >= nOpen) return;
+  snprintf(id, sizeof(id), "%s", opened[k].id);
+  open_drop(k);
+  m = mod_find(id);
+  if (m >= 0 && mods[m].reload) { mod_unload(m); mod_load(id); }
+}
 /* Miniatura d'1/3 de la pantalla (sota la barra) de l'app que es veu ara. */
 static void thumb_capture(void) {
   View *v = &stack[depth - 1]; ibitmap *b; int tw, th, x, y;
@@ -1835,7 +1849,7 @@ static void act(int a, int arg) {
     case A_MON_STOP:
       if (arg >= 3000) jobs_cancel(arg - 3000);
       else if (arg >= 2000) { int b = arg - 2000; if (b < nbusy) { char id[48]; int k; snprintf(id, sizeof(id), "%s", busyT[b].id); for (k = 0; k < nunl; k++) if (!strcmp(unl[k].id, id)) { unl[k].fn(); break; } h_busy(id, NULL); } }
-      else if (arg >= 1000) open_drop(arg - 1000);
+      else if (arg >= 1000) open_close(arg - 1000);
       draw(0); break;
     case A_OPEN_SPLIT: push_view(-1, V_SPLITPICK, 0, 0, 0, NULL); draw(1); break;
     case A_PICK_TOP: pickTop = arg; if (pickBot == arg) pickBot = -1; draw(0); break;
@@ -1850,8 +1864,8 @@ static void act(int a, int arg) {
       memcpy(tv, splitSt[0], sizeof(tv)); memcpy(splitSt[0], splitSt[1], sizeof(tv)); memcpy(splitSt[1], tv, sizeof(tv)); n = splitN[0]; splitN[0] = splitN[1]; splitN[1] = n; draw(1); } break;
     case A_SPLIT_SIZE: splitRatio = (splitRatio + 1) % 3; draw(1); break;
     case A_SPLIT_CLOSE: split_exit(-1); draw(1); break;
-    case A_OPEN_CLOSE: open_drop(arg); draw(0); break;
-    case A_OPEN_ALL: while (nOpen) open_drop(0); draw(0); break;
+    case A_OPEN_CLOSE: open_close(arg); draw(0); break;
+    case A_OPEN_ALL: while (nOpen) open_close(0); draw(0); break;
     case A_JOB_CANCEL: jobs_cancel(arg); draw(0); break;
     case A_SYNC_TOGGLE: if (arg >= 0 && arg < nbg) { bgt[arg].on = !bgt[arg].on; bg_save(); } draw(0); break;
     case A_SYNC_CHARGE: cfgCharge = !cfgCharge; cfg_save(); draw(0); break;
@@ -1885,8 +1899,20 @@ static void act(int a, int arg) {
   }
 }
 
+/* Tocs directes per al paquet de primer pla que els vol (escriptori_event): no amb el tauler ràpid, la pantalla dividida
+   ni un diàleg obert. */
+static int mod_raw_event(int type, int par1, int par2) {
+  View *v;
+  if (type != EVT_POINTERDOWN && type != EVT_POINTERUP && type != EVT_POINTERMOVE && type != EVT_POINTERDRAG && type != EVT_POINTERLONG &&
+      type != EVT_POINTERHOLD && type != EVT_MTSYNC) return 0;
+  if (depth < 1 || uiModal || split_on() || quick_open()) return 0;
+  v = &stack[depth - 1];
+  if (v->mod < 0 || v->mod >= nmods || !mods[v->mod].ev) return 0;
+  return mods[v->mod].ev(type, par1, par2);
+}
 static int handler(int type, int par1, int par2) {
   int i;
+  if (mod_raw_event(type, par1, par2)) return 1;
   switch (type) {
     case EVT_INIT:
       SW = ScreenWidth(); SH = ScreenHeight(); U = SW / 27; if (U < 16) U = 16; SB = U * SBK / 4;

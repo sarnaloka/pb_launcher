@@ -11,11 +11,22 @@ CC=arm-obreey-linux-gnueabi-gcc
 F="-O2 -Wall -Wextra -Wno-format-truncation -Wno-misleading-indentation -fsigned-char -march=armv7-a -mfpu=neon -mfloat-abi=softfp -DPLATFORM_FC -I."
 $CC $F -s -o "$ROOT/Escriptori.app" base.c -linkview -lm -ldl -lpthread
 mkdir -p "$ROOT/packages"
+# Doom: el codi original (1997) es compila a part, sense avisos i amb -fcommon/-fno-strict-aliasing
+DOOMOBJ=$(mktemp -d)
+doom_objs() {
+  for s in apps/doom/*.c apps/doom/pbdoom/*.c apps/doom/pbdoom/frames/*.c apps/doom/sdldoom-1.10/*.c; do
+    o="$DOOMOBJ/$(echo "$s" | tr '/' '_').o"
+    $CC $F -w -fcommon -fno-strict-aliasing -fPIC -fvisibility=hidden -c "$s" -o "$o"
+    echo "$o"
+  done
+}
 for f in apps/*.c; do
   id=$(basename "$f" .c); extra=""
   [ "$id" = busamb ] && extra="apps/busamb/amb.c apps/busamb/data.S -Wa,-Iapps/busamb"
+  [ "$id" = doom ] && extra="$(doom_objs)"
   $CC $F -s -shared -fPIC -fvisibility=hidden -o "$ROOT/packages/$id.pkg" "$f" $extra -linkview -lm
 done
+rm -rf "$DOOMOBJ"
 unset LD_LIBRARY_PATH
 python3 "$ROOT/tools/mkindex.py" "$ROOT/src/packages.txt" "$ROOT/packages"
 python3 "$ROOT/tools/mkversion.py" "$ROOT"

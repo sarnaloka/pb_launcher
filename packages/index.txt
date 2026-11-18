@@ -13,3 +13,4 @@ noticies|Notícies|6|22068|3b10f33d|Titulars de canals RSS, desats per llegir se
 lector|Lector|5|54952|9a68fe2e|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
 xat|Xat|3|26208|466e6c98|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
 ftp|FTP|3|34464|36bb6a16|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).
+doom|Doom|1|395708|b4bcaeaf|El clàssic de tirs (PBDoom), amb controls tàctils. Cal copiar un fitxer WAD a la carpeta «Doom» del lector (serveixen els lliures de Freedoom).
