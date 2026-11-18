@@ -1,0 +1,35 @@
+diff --git a/crengine/include/lvhashtable.h b/crengine/include/lvhashtable.h
+index 9b50024..4bd0d7e 100644
+--- a/crengine/include/lvhashtable.h
++++ b/crengine/include/lvhashtable.h
+@@ -49,6 +49,10 @@ inline lUInt32 getHash(void * n )
+ /**
+     Implements hash table map
+ */
++// Escriptori: en lloc d'«if constexpr» (C++17), per al gcc 6.3 del SDK de PocketBook.
++template <bool own> struct lvht_del { template <class T> static void go(T &) {} };
++template <> struct lvht_del<true> { template <class T> static void go(T &v) { delete v; } };
++
+ template <typename keyT, typename valueT, bool own_values = false> class LVHashTable
+ {
+ 	friend class iterator;
+@@ -116,8 +120,7 @@ public:
+             pair * p = _table[i];
+             while ( p ) {
+                 pair * tmp = p;
+-                if constexpr (own_values)
+-                    delete p->value;
++                lvht_del<own_values>::go(p->value);
+                 p = p->next;
+                 delete tmp;
+             }
+@@ -181,8 +184,7 @@ public:
+         {
+             if ( (*p)->key == key )
+             {
+-                if constexpr (own_values)
+-                    delete p->value;
++                lvht_del<own_values>::go((*p)->value);
+                 pair * tmp = *p;
+                 *p = (*p)->next;
+                 delete tmp;

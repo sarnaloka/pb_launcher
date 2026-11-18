@@ -1,5 +1,5 @@
 12
 211096
-1dc630cf
+c505bbe1
 Versió 2.4: els paquets poden rebre el multitàctil i tornar-se a carregar nets en tancar-los. Nou paquet a la Botiga: Doom (cal copiar un fitxer WAD a la carpeta «Doom» del lector). Després d'actualitzar, surt i torna a obrir l'Escriptori.
 2.4

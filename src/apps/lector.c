@@ -1,11 +1,12 @@
-/* Escriptori — paquet «Lector»: biblioteca i lector de llibres EPUB. */
+/* Escriptori — paquet «Lector»: biblioteca i lector de llibres EPUB. La composició i les pàgines les fa el CREngine
+   (el motor del KOReader i del Kobalt, GPL v2 o posterior; vegeu lector/LLEGEIX.md), i per tant aquest paquet també és GPL. */
 #define ESC_MODULE
 #include "../mod.h"
 #include <ctype.h>
+#include "lector/cre.h"
 
 enum { V_LIB, V_BOOK, V_MENU, V_TOC };
-enum { A_OPEN = 100, A_SCAN, A_TAPPREV, A_TAPNEXT, A_MENU, A_TOC, A_TOCGO, A_FSIZE, A_FFAM, A_FSPC, A_FMAR, A_GOTO, A_CLOSE, A_READ };
-enum { K_P = 1, K_H1, K_H2, K_Q, K_L, K_C };      /* tipus de bloc de text */
+enum { A_OPEN = 100, A_SCAN, A_TAPPREV, A_TAPNEXT, A_MENU, A_TOC, A_TOCGO, A_FSIZE, A_FFAM, A_FSPC, A_FMAR, A_GOTO, A_CLOSE, A_READ, A_FJUST, A_FHYPH };
 
 /* ═════════════ Descompressió (deflate, basada en l'algorisme de «puff») ═════════════ */
 typedef struct { const unsigned char *in; size_t inlen, incnt; unsigned bitbuf; int bitcnt, eof; unsigned char *out; size_t outlen, outcnt; } Inf;
@@ -383,100 +384,13 @@ static void path_join(const char *base, const char *href, char *out, int max, ch
   if (frag) pct_decode(frag);
 }
 
-/* ═════════════ HTML -> blocs de text ═════════════
-   Format: per bloc, un byte de tipus (K_*), el text (0x0B = salt de línia forçat) i «\n». */
-typedef struct { char *id; size_t off; } Anchor;
-static Anchor *anc; static int nanc, ancCap;
-static void anc_free(void) { int i; for (i = 0; i < nanc; i++) free(anc[i].id); free(anc); anc = NULL; nanc = ancCap = 0; }
-static void anc_add(const char *id, size_t off) {
-  if (!id[0] || nanc >= 4000) return;
-  if (nanc >= ancCap) { int c = ancCap ? ancCap * 2 : 128; Anchor *na = (Anchor *)realloc(anc, sizeof(Anchor) * (size_t)c); if (!na) return; anc = na; ancCap = c; }
-  anc[nanc].id = strdup(id); anc[nanc].off = off;
-  if (anc[nanc].id) nanc++;
-}
-typedef struct { Buf out, cur; int sp, hdr, inli, qd, ckind; } HC;
-static int hc_kind(const HC *c) { return c->hdr ? c->hdr : c->inli ? K_L : c->qd ? K_Q : K_P; }
-static void hc_flush(HC *c) {
-  size_t k = c->cur.n;
-  while (k > 0 && (c->cur.p[k - 1] == ' ' || c->cur.p[k - 1] == 0x0B)) k--;
-  if (k > 0) { char m = (char)c->ckind; buf_put(&c->out, &m, 1); buf_put(&c->out, c->cur.p, k); buf_put(&c->out, "\n", 1); }
-  c->cur.n = 0; if (c->cur.p) c->cur.p[0] = 0;
-  c->sp = 1;
-}
-static void hc_special(HC *c, int kind, const char *text) {
-  char m = (char)kind;
-  hc_flush(c);
-  buf_put(&c->out, &m, 1); buf_put(&c->out, text, strlen(text)); buf_put(&c->out, "\n", 1);
-}
-static void hc_char(HC *c, const char *s, size_t n) {
-  if (!c->cur.n) c->ckind = hc_kind(c);
-  buf_put(&c->cur, s, n); c->sp = 0;
-}
-static void hc_space(HC *c) { if (!c->sp && c->cur.n) { buf_put(&c->cur, " ", 1); c->sp = 1; } }
-static void hc_text(HC *c, const char *s, const char *e) {
-  while (s < e) {
-    unsigned char ch = (unsigned char)*s;
-    if (ch == '&') { unsigned cp; int k = ent_decode(s, e, &cp); if (k) { Buf t; memset(&t, 0, sizeof(t)); if (cp == ' ' || cp == 0xA0 || cp == '\t' || cp == '\n') hc_space(c); else if (cp >= 32 && cp != 0xAD && cp != 0x200B) { u8put(&t, cp); if (t.p) hc_char(c, t.p, t.n); } free(t.p); s += k; continue; } }
-    if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r') { hc_space(c); s++; continue; }
-    if (ch < 32) { s++; continue; }
-    if (ch == 0xC2 && s + 1 < e && ((unsigned char)s[1] == 0xA0)) { hc_space(c); s += 2; continue; }
-    if (ch == 0xC2 && s + 1 < e && ((unsigned char)s[1] == 0xAD)) { s += 2; continue; }
-    if (ch == 0xE2 && s + 2 < e && (unsigned char)s[1] == 0x80 && (unsigned char)s[2] == 0x8B) { s += 3; continue; }
-    hc_char(c, s, 1); s++;
-  }
-}
-static int is_in(const char *n, const char *list) {         /* list: «a,b,c,» */
-  size_t k = strlen(n); const char *p = list;
-  while (*p) { const char *q = strchr(p, ','); if (!q) break; if ((size_t)(q - p) == k && !memcmp(p, n, k)) return 1; p = q + 1; }
-  return 0;
-}
-static char *html_convert(const char *h, size_t n, size_t *outn) {
-  HC c; const char *p = h, *end = h + n, *lt, *te; char nm[24], val[200]; int closing;
-  memset(&c, 0, sizeof(c)); c.sp = 1;
-  anc_free();
-  while ((lt = tag_next(p, end, &te)) != NULL) {
-    if (lt > p) hc_text(&c, p, lt);
-    p = te + 1;
-    if (lt[1] == '!' || lt[1] == '?') { if (!memcmp(lt, "<![CDATA[", 9) && te - 2 >= lt + 9) hc_text(&c, lt + 9, te - 2); continue; }
-    closing = tag_name(lt, te, nm, sizeof(nm));
-    if (!closing && attr_get(lt, te, "id", val, sizeof(val))) anc_add(val, c.out.n + (c.cur.n ? 1 + c.cur.n : 0));
-    if (!closing && nm[0] == 'a' && !nm[1] && attr_get(lt, te, "name", val, sizeof(val))) anc_add(val, c.out.n + (c.cur.n ? 1 + c.cur.n : 0));
-    if (!closing && is_in(nm, "head,script,style,")) {      /* salta fins a l'etiqueta de tancament */
-      const char *t2, *l2;
-      if (te[-1] == '/') continue;
-      while ((l2 = tag_next(p, end, &t2)) != NULL) { char n2[24]; int cl2 = tag_name(l2, t2, n2, sizeof(n2)); p = t2 + 1; if (cl2 && !strcmp(n2, nm)) break; }
-      if (!l2) break;
-      continue;
-    }
-    if (nm[0] == 'h' && nm[1] >= '1' && nm[1] <= '6' && !nm[2]) { hc_flush(&c); c.hdr = closing ? 0 : (nm[1] <= '2' ? K_H1 : K_H2); }
-    else if (!strcmp(nm, "li")) { hc_flush(&c); c.inli = closing ? 0 : 1; }
-    else if (!strcmp(nm, "blockquote")) { hc_flush(&c); if (closing) { if (c.qd > 0) c.qd--; } else c.qd++; }
-    else if (!strcmp(nm, "br")) { if (c.cur.n && c.cur.p[c.cur.n - 1] != 0x0B) { buf_put(&c.cur, "\x0B", 1); c.sp = 1; } }
-    else if (!strcmp(nm, "hr")) hc_special(&c, K_C, "* * *");
-    else if (!closing && is_in(nm, "img,image,")) {
-      if (!c.cur.n) {
-        char alt[120], t[160];
-        if (attr_get(lt, te, "alt", alt, sizeof(alt)) && alt[0]) { plain_text(alt, alt + strlen(alt), t + 0, sizeof(t) - 12); memmove(t + 9, t, strlen(t) + 1); memcpy(t, "[imatge: ", 9); strcat(t, "]"); hc_special(&c, K_C, t); }
-        else if (!c.out.n) hc_special(&c, K_C, "[imatge]");
-      }
-    }
-    else if (is_in(nm, "td,th,")) { if (!closing) hc_space(&c); }
-    else if (is_in(nm, "p,div,section,article,aside,header,footer,tr,ul,ol,dl,dt,dd,figure,figcaption,table,center,pre,nav,body,")) hc_flush(&c);
-  }
-  if (p < end) hc_text(&c, p, end);
-  hc_flush(&c);
-  free(c.cur.p);
-  if (!c.out.p) { c.out.p = (char *)calloc(1, 1); c.out.n = 0; }
-  *outn = c.out.n;
-  return c.out.p;
-}
-
 /* ═════════════ Llibre obert ═════════════ */
 typedef struct { char *path; unsigned long usize; double start; } Chap;
 typedef struct { char *title; int chap, lvl; char frag[48]; } Toc;
 typedef struct {
   char path[300], title[120], author[80]; long size, mtime; int nch; long total;
   int chap; long off; int pm; time_t last;
+  char xp[400];                 /* posició al motor CREngine (XPointer) */
 } Book;
 static Zip Z; static int zopen;
 static Chap *chs; static int nch; static double totalBytes;
@@ -625,167 +539,71 @@ done:
   return ok;
 }
 
-/* ═════════════ Configuració de lectura i fonts ═════════════ */
+/* ═════════════ Motor de pàgines: CREngine ═════════════
+   La composició, la partició de mots i la paginació les fa el CREngine (lector/cre.cpp), el motor del KOReader i del
+   Kobalt. Els diccionaris i el CSS van dins del paquet (lector/data.S) i s'escriuen a la memòria la primera vegada. */
+#define LDIR FLASHDIR "/system/escriptori/lector"
+extern const unsigned char lec_css[], lec_css_end[];
+#define HYPHS X(Catalan) X(Spanish) X(English_US) X(English_GB) X(French) X(Italian) X(Portuguese) X(Occitan) X(Basque) X(Galician)
+#define X(n) extern const unsigned char lec_h_##n[], lec_h_##n##_end[];
+HYPHS
+#undef X
+static int creOk = -1;             /* -1 sense provar, 0 a punt, 1 no ha funcionat */
+static void put_file(const char *path, const unsigned char *a, const unsigned char *b) {
+  struct stat st; FILE *f; long n = (long)(b - a);
+  if (stat(path, &st) == 0 && st.st_size == n) return;
+  f = fopen(path, "wb");
+  if (!f) return;
+  fwrite(a, 1, (size_t)n, f); fclose(f);
+}
+static int cre_setup(void) {
+  static const char *const FONTS[] = {
+#ifdef ESC_SIM
+    "/usr/share/fonts/truetype/liberation", "/usr/share/fonts/truetype/dejavu",
+#else
+    "/ebrmain/fonts",
+#endif
+    FLASHDIR "/system/fonts", NULL };
+  if (creOk >= 0) return creOk;
+  mkdir(FLASHDIR "/system/escriptori", 0777); mkdir(LDIR, 0777); mkdir(LDIR "/hyph", 0777); mkdir(LDIR "/cache", 0777);
+  put_file(LDIR "/epub.css", lec_css, lec_css_end);
+#define X(n) put_file(LDIR "/hyph/" #n ".pattern", lec_h_##n, lec_h_##n##_end);
+  HYPHS
+#undef X
+  creOk = cre_init(LDIR, FONTS, LDIR "/cache") == 0 ? 0 : 1;
+  return creOk;
+}
+
+/* ═════════════ Configuració de lectura ═════════════ */
 static const int FSZ[8] = { 30, 34, 38, 42, 46, 52, 58, 66 };
-static const int SPC[3] = { 118, 133, 152 };
-typedef struct { int size, fam, spc, mar; } Cfg;
-static Cfg cfg = { 3, 1, 1, 1 };
+static const int SPC[3] = { 100, 120, 145 };
+typedef struct { int size, fam, spc, mar, just, hyph; } Cfg;
+static Cfg cfg = { 3, 1, 1, 1, 1, 1 };
 static Store cfgst = { 0, 0, 0, CFG "escriptori_lector_cfg.txt" };
 static void cfg_load(void) {
-  int a, b, c, d;
+  int a, b, c, d, e = 1, f = 1, n;
   cfgst.loaded = 0; st_load(&cfgst);
-  if (cfgst.n > 0 && sscanf(cfgst.it[0], "%d %d %d %d", &a, &b, &c, &d) == 4 && a >= 0 && a < 8 && b >= 0 && b < 2 && c >= 0 && c < 3 && d >= 0 && d < 3) { cfg.size = a; cfg.fam = b; cfg.spc = c; cfg.mar = d; }
+  if (cfgst.n > 0 && (n = sscanf(cfgst.it[0], "%d %d %d %d %d %d", &a, &b, &c, &d, &e, &f)) >= 4 && a >= 0 && a < 8 && b >= 0 && b < 2 && c >= 0 && c < 3 && d >= 0 && d < 3) {
+    cfg.size = a; cfg.fam = b; cfg.spc = c; cfg.mar = d; cfg.just = n >= 5 ? !!e : 1; cfg.hyph = n >= 6 ? !!f : 1;
+  }
 }
 static void cfg_save(void) {
-  char t[40];
-  snprintf(t, sizeof(t), "%d %d %d %d", cfg.size, cfg.fam, cfg.spc, cfg.mar);
+  char t[60];
+  snprintf(t, sizeof(t), "%d %d %d %d %d %d", cfg.size, cfg.fam, cfg.spc, cfg.mar, cfg.just, cfg.hyph);
   st_load(&cfgst);
   st_clear(&cfgst); st_insert(&cfgst, 0, t); st_save(&cfgst);
 }
 static int margin_px(void) { return U * (cfg.mar == 0 ? 2 : cfg.mar == 1 ? 4 : 6) / 4 + U / 4; }
-typedef struct { int fam, bold, size; ifont *f; } FCache;
-static FCache fcache[24]; static int nfc;
-static ifont *getfont(int fam, int bold, int size) {
-  int i; ifont *f;
-  for (i = 0; i < nfc; i++) if (fcache[i].fam == fam && fcache[i].bold == bold && fcache[i].size == size) return fcache[i].f;
-  f = OpenFont(fam ? (bold ? "LiberationSerif-Bold" : "LiberationSerif") : (bold ? DEFAULTFONTB : DEFAULTFONT), size, 1);
-  if (!f) f = OpenFont(bold ? DEFAULTFONTB : DEFAULTFONT, size, 1);
-  if (!f) return bold ? fBold : fText;
-  if (nfc >= 24) nfc = 0;
-  fcache[nfc].fam = fam; fcache[nfc].bold = bold; fcache[nfc].size = size; fcache[nfc].f = f; nfc++;
-  return f;
+static int page_by(void) { return SH - 3 * U; }                  /* on comença la barra inferior */
+static void cur_layout(CreLayout *l) {
+  memset(l, 0, sizeof(*l));
+  l->w = SW; l->h = page_by() - SB;
+  l->font_px = FSZ[cfg.size]; l->serif = cfg.fam; l->interline = SPC[cfg.spc];
+  l->margin_x = margin_px(); l->margin_top = U; l->margin_bottom = U / 3;
+  l->justify = cfg.just; l->hyphenate = cfg.hyph; l->embedded_styles = 1;
 }
-static int block_size(int kind) { int sz = FSZ[cfg.size]; return kind == K_H1 ? sz * 5 / 4 : sz; }
-static ifont *block_font(int kind) { return getfont(cfg.fam, kind == K_H1 || kind == K_H2, block_size(kind)); }
 
-/* ═════════════ Capítol: càrrega, composició i pàgines ═════════════ */
-typedef struct { int off, len; short x, pre, h; unsigned char kind, first; } Line;
-static char *txt; static size_t txtlen;
-static Line *L; static int nL, capL;
-static int *pgl, npg, cp, curch = -1;
-static int needLayout;
-static void ch_free(void) {
-  free(txt); txt = NULL; txtlen = 0;
-  free(L); L = NULL; nL = capL = 0;
-  free(pgl); pgl = NULL; npg = 0; cp = 0;
-  anc_free();
-}
-static void emit(size_t ls, size_t le, int kind, int x, int pre, int h, int first) {
-  Line *l;
-  if (nL >= 200000) return;
-  if (nL >= capL) { int c = capL ? capL * 2 : 512; Line *nl = (Line *)realloc(L, sizeof(Line) * (size_t)c); if (!nl) return; L = nl; capL = c; }
-  l = &L[nL++];
-  l->off = (int)ls; l->len = (int)(le - ls); l->x = (short)x; l->pre = (short)pre; l->h = (short)h; l->kind = (unsigned char)kind; l->first = (unsigned char)first;
-}
-static int wwidth(size_t s, size_t n) {
-  char t[256]; size_t k = n > 255 ? 255 : n; int w;
-  memcpy(t, txt + s, k); t[k] = 0;
-  w = StringWidth(t);
-  return n > 255 ? (int)((double)w * (double)n / 255.0) : w;
-}
-static void layout_block(int kind, size_t bs, size_t be, int prevkind, int *padnext) {
-  int sz = block_size(kind), lh, spw, x0, ind = 0, avail, lw = 0, first = 1, pend, Wd = SW - 2 * margin_px();
-  size_t i = bs, ls = bs, le = bs;
-  SetFont(block_font(kind), BLACK);
-  lh = sz * SPC[cfg.spc] / 100;
-  spw = StringWidth(" "); if (spw < 2) spw = sz / 4;
-  x0 = kind == K_Q ? U * 3 / 2 : kind == K_L ? U + U / 4 : 0;
-  if (kind == K_P && prevkind == K_P) ind = sz;
-  pend = *padnext; *padnext = 0;
-  if (prevkind == 0) pend = 0;
-  switch (kind) {
-    case K_H1: if (prevkind) pend += lh * 6 / 5; *padnext = lh * 4 / 5; break;
-    case K_H2: if (prevkind) pend += lh * 7 / 10; *padnext = lh / 5; break;
-    case K_C: pend += lh * 6 / 10; *padnext = lh * 6 / 10; break;
-    case K_Q: case K_L: if (prevkind != kind) pend += lh * 3 / 10; break;
-    default: if ((prevkind == K_Q || prevkind == K_L) && prevkind != kind) pend += lh * 3 / 10; break;
-  }
-  avail = Wd - x0 - ind;
-  while (i < be) {
-    unsigned char c = (unsigned char)txt[i]; size_t ws; int ww, need;
-    if (c == ' ') { i++; continue; }
-    if (c == 0x0B) { if (le > ls || lw == 0) emit(ls, le, kind, x0 + (first ? ind : 0), pend, lh, first && kind == K_L); pend = 0; first = 0; ls = le = i + 1; lw = 0; avail = Wd - x0; i++; continue; }
-    ws = i;
-    while (i < be && txt[i] != ' ' && txt[i] != 0x0B) i++;
-    ww = wwidth(ws, i - ws);
-    need = lw ? lw + spw + ww : ww;
-    if (lw && need > avail) { emit(ls, le, kind, x0 + (first ? ind : 0), pend, lh, first && kind == K_L); pend = 0; first = 0; avail = Wd - x0; lw = 0; need = ww; }
-    if (!lw) ls = ws;
-    if (ww > avail) {                      /* paraula més ampla que la línia: es parteix per caràcters */
-      size_t j = ws, ps = ws; int cw = 0;
-      while (j < i) {
-        size_t k = j + 1; int w1;
-        while (k < i && ((unsigned char)txt[k] & 0xC0) == 0x80) k++;
-        w1 = wwidth(j, k - j);
-        if (cw + w1 > avail && j > ps) { emit(ps, j, kind, x0 + (first ? ind : 0), pend, lh, first && kind == K_L); pend = 0; first = 0; avail = Wd - x0; ps = j; cw = 0; }
-        cw += w1; j = k;
-      }
-      ls = ps; le = i; lw = cw;
-      continue;
-    }
-    lw = need; le = i;
-  }
-  if (le > ls) emit(ls, le, kind, x0 + (first ? ind : 0), pend, lh, first && kind == K_L);
-}
-static int page_area(void) { return SH - 3 * U - (SB + U); }
-static void paginate(void) {
-  int i, j, y = 0, start = 0, AH = page_area();
-  free(pgl);
-  pgl = (int *)malloc(sizeof(int) * (size_t)(nL + 2));
-  npg = 1;
-  if (!pgl) { npg = 0; return; }
-  pgl[0] = 0;
-  for (i = 0; i < nL; i++) {
-    int adv = L[i].h + (i == start ? 0 : L[i].pre);
-    if (i != start && y + adv > AH) {
-      int s = i;
-      if (i - 1 > start && (L[i - 1].kind == K_H1 || L[i - 1].kind == K_H2)) {      /* un títol no es queda sol al final */
-        s = i - 1;
-        while (s - 1 > start && L[s - 1].kind == L[i - 1].kind) s--;
-      }
-      pgl[npg++] = s; start = s;
-      y = 0;
-      for (j = s; j < i; j++) y += L[j].h + (j == s ? 0 : L[j].pre);
-      adv = L[i].h + L[i].pre;
-    }
-    y += adv;
-  }
-  pgl[npg] = nL;
-}
-static void layout_all(void) {
-  size_t p = 0; int prevkind = 0, padnext = 0;
-  nL = 0;
-  while (p < txtlen) {
-    int kind = (unsigned char)txt[p]; size_t bs = p + 1, be = bs;
-    while (be < txtlen && txt[be] != '\n') be++;
-    if (kind < K_P || kind > K_C) kind = K_P;
-    layout_block(kind, bs, be, prevkind, &padnext);
-    prevkind = kind; p = be + 1;
-  }
-  paginate();
-}
-static int page_of(long off) {
-  int lo = 0, hi = nL - 1, ln = 0, pg;
-  if (nL == 0 || npg == 0) return 0;
-  while (lo <= hi) { int m = (lo + hi) / 2; if (L[m].off <= off) { ln = m; lo = m + 1; } else hi = m - 1; }
-  for (pg = npg - 1; pg > 0; pg--) if (pgl[pg] <= ln) break;
-  return pg;
-}
-static long page_off(void) { return (nL && npg && pgl[cp] < nL) ? L[pgl[cp]].off : 0; }
-static int ch_load(int ci) {
-  int zi; size_t n = 0; char *html = NULL;
-  ch_free();
-  curch = ci;
-  zi = zip_find(&Z, chs[ci].path);
-  if (zi >= 0) html = zip_read(&Z, zi, &n);
-  if (html) { if (n > 150000) ShowHourglass(); txt = html_convert(html, n, &txtlen); free(html); if (n > 150000) HideHourglass(); }
-  if (!txt) { txt = strdup("\x01(No s'ha pogut llegir aquest capítol.)\n"); txtlen = txt ? strlen(txt) : 0; }
-  layout_all();
-  return 0;
-}
-static int anc_off(const char *id) { int i; for (i = 0; i < nanc; i++) if (!strcmp(anc[i].id, id)) return (int)anc[i].off + 1; return 0; }
-
-/* ═════════════ Biblioteca i progrés ═════════════ */
+/* ═════════════ Biblioteca: llibres i progrés ═════════════ */
 #define MAXBK 300
 static Book *bk; static int nbk;
 static Store libc = { 0, 0, 0, CFG "escriptori_lector_lib.txt" };
@@ -797,17 +615,22 @@ static int split_tab(char *s, char **f, int max) {
   while (k < max) { f[k++] = p; p = strchr(p, '\t'); if (!p) break; *p++ = 0; }
   return k;
 }
+/* progrés: camí, capítol, desplaçament, per mil, última lectura i (des del motor nou) la posició XPointer */
 static void prog_apply(Book *b) {
-  int i; char *f[6], t[900];
-  b->chap = 0; b->off = 0; b->pm = 0; b->last = 0;
+  int i, k; char *f[7], t[1400];
+  b->chap = 0; b->off = 0; b->pm = 0; b->last = 0; b->xp[0] = 0;
   for (i = 0; i < prog.n; i++) {
     snprintf(t, sizeof(t), "%s", prog.it[i]);
-    if (split_tab(t, f, 6) >= 5 && !strcmp(f[0], b->path)) { b->chap = atoi(f[1]); b->off = atol(f[2]); b->pm = atoi(f[3]); b->last = (time_t)atol(f[4]); return; }
+    if ((k = split_tab(t, f, 7)) >= 5 && !strcmp(f[0], b->path)) {
+      b->chap = atoi(f[1]); b->off = atol(f[2]); b->pm = atoi(f[3]); b->last = (time_t)atol(f[4]);
+      if (k >= 6) snprintf(b->xp, sizeof(b->xp), "%s", f[5]);
+      return;
+    }
   }
 }
 static void prog_save(const Book *b) {
-  int i, k = -1; char t[900], pre[340];
-  snprintf(t, sizeof(t), "%s\t%d\t%ld\t%d\t%ld", b->path, b->chap, b->off, b->pm, (long)b->last);
+  int i, k = -1; char t[1400], pre[340];
+  snprintf(t, sizeof(t), "%s\t%d\t%ld\t%d\t%ld\t%s", b->path, b->chap, b->off, b->pm, (long)b->last, b->xp);
   snprintf(pre, sizeof(pre), "%s\t", b->path);
   for (i = 0; i < prog.n; i++) if (!strncmp(prog.it[i], pre, strlen(pre))) { k = i; break; }
   if (k >= 0) st_del(&prog, k);
@@ -831,9 +654,10 @@ static void scan_dir(const char *dir, int depth) {
   }
   closedir(d);
 }
+static void book_close(void);
 static void lib_scan(void) {
   int i, j; char t[900], *f[8]; Book *nb; int nn = 0;
-  ch_free(); curch = -1; rb = -1; bk_close();
+  book_close();
   st_load(&libc); st_load(&prog);
   found = (Found *)calloc(MAXBK, sizeof(Found)); nfound = 0;
   nb = (Book *)calloc(MAXBK, sizeof(Book));
@@ -867,65 +691,34 @@ static void lib_scan(void) {
   free(found); found = NULL;
 }
 
-/* ═════════════ Lectura: posició, progrés, canvi de pàgina ═════════════ */
-static int cur_pm(void) {
-  double frac, pos;
-  if (curch < 0 || !nch) return 0;
-  if (curch == nch - 1 && npg > 0 && cp >= npg - 1) return 1000;
-  frac = txtlen ? (double)page_off() / (double)txtlen : 0;
-  pos = chs[curch].start + frac * (double)(chs[curch].usize ? chs[curch].usize : 1);
-  return totalBytes > 0 ? (int)(pos * 1000.0 / totalBytes) : 0;
-}
+/* ═════════════ Lectura: llibre obert, posició, pàgines ═════════════ */
+static ibitmap *pageBmp;
+static int cur_pm(void) { return cre_is_open() ? cre_percent() / 10 : 0; }
 static void save_pos(void) {
   Book *b;
-  if (rb < 0 || rb >= nbk || curch < 0) return;
+  if (rb < 0 || rb >= nbk || !cre_is_open()) return;
   b = &bk[rb];
-  b->chap = curch; b->off = page_off(); b->pm = cur_pm(); b->last = time(NULL);
+  cre_bookmark(b->xp, sizeof(b->xp));
+  b->pm = cur_pm(); b->chap = 0; b->off = cre_page(); b->last = time(NULL);
   prog_save(b);
 }
-/* un capítol només amb una imatge (portada) no té res per llegir: es salta */
-static int chap_has_text(void) { return nL > 0 && !(txtlen == 10 && !memcmp(txt, "\x06[imatge]", 9)); }
-static void go_next(void) {
-  int c0 = curch;
-  if (cp < npg - 1) { cp++; return; }
-  while (curch + 1 < nch) { ch_load(curch + 1); cp = 0; if (chap_has_text()) return; }
-  ch_load(c0); cp = npg > 0 ? npg - 1 : 0;       /* no hi ha més text: et quedes al final */
-}
-static void go_prev(void) {
-  int c0 = curch;
-  if (cp > 0) { cp--; return; }
-  while (curch > 0) { ch_load(curch - 1); cp = npg > 0 ? npg - 1 : 0; if (chap_has_text()) return; }
-  ch_load(c0); cp = 0;
-}
-static void goto_chapter(int ci, const char *frag) {
-  long off = 0;
-  if (ci < 0 || ci >= nch) return;
-  ch_load(ci);
-  if (frag && frag[0]) off = anc_off(frag);
-  cp = page_of(off);
+static void book_close(void) {
+  if (cre_is_open()) { save_pos(); cre_close(); }
+  rb = -1;
 }
 static int book_open(int i) {
-  Book *b; int ci;
+  Book *b; CreLayout l;
   if (i < 0 || i >= nbk) return -1;
+  if (cre_setup() != 0) return -2;
+  book_close();
   b = &bk[i];
-  ch_free(); curch = -1;
   ShowHourglass();
-  if (bk_load(b, 1) != 0) { HideHourglass(); return -1; }
+  cur_layout(&l); cre_layout(&l);
+  if (cre_open(b->path) != 0) { HideHourglass(); return -1; }
+  if ((!b->xp[0] || cre_goto_bookmark(b->xp) != 0) && b->pm > 0) cre_goto_percent(b->pm * 10);   /* progrés del motor antic */
   HideHourglass();
   rb = i;
-  ci = b->chap >= 0 && b->chap < nch ? b->chap : 0;
-  ch_load(ci);
-  cp = page_of(b->off);
-  if (!b->last && !chap_has_text()) go_next();       /* llibre nou: comença pel primer text */
-  needLayout = 0;
   return 0;
-}
-static void relayout(void) {
-  long keep = page_off();
-  if (curch < 0) return;
-  layout_all();
-  cp = page_of(keep);
-  needLayout = 0;
 }
 
 /* ═════════════ Vistes ═════════════ */
@@ -988,41 +781,31 @@ static void v_lib(View *v) {
     card(cx, cy, cw, chh, i);
   }
 }
-static void draw_reading(void) {
-  int i, ya, a, b, mar = margin_px(), Wd = SW - 2 * mar;
-  if (npg == 0) return;
-  a = pgl[cp]; b = pgl[cp + 1]; ya = SB + U;
-  for (i = a; i < b; i++) {
-    const Line *l = &L[i]; char t[600]; int n = l->len, flags = ALIGN_LEFT | VALIGN_TOP, x = mar + l->x, w = Wd - l->x, sz = block_size(l->kind);
-    if (i > a) ya += l->pre;
-    if (n > (int)sizeof(t) - 1) n = (int)sizeof(t) - 1;
-    memcpy(t, txt + l->off, (size_t)n); t[n] = 0;
-    { char *q; for (q = t; *q; q++) if (*q == 0x0B) *q = ' '; }
-    if (l->kind == K_H1 || l->kind == K_C) { flags = ALIGN_CENTER | VALIGN_TOP; x = mar; w = Wd; }
-    SetFont(block_font(l->kind), BLACK);
-    if (n > 0) DrawTextRect(x, ya, w, l->h * 3 / 2, t, flags);
-    if (l->kind == K_L && l->first) disc(mar + U / 2, ya + sz * 3 / 5, sz / 8 + 1, BLACK);
-    ya += l->h;
+/* La pàgina la pinta el CREngine en grisos; es dibuixa d'un sol cop (en tema fosc l'Escriptori la inverteix). */
+static void draw_page(void) {
+  CreLayout l; int w, h;
+  cur_layout(&l); cre_layout(&l);
+  w = l.w; h = l.h;
+  if (!pageBmp || pageBmp->width != w || pageBmp->height != h) {
+    free(pageBmp);
+    pageBmp = (ibitmap *)malloc(sizeof(ibitmap) + (size_t)w * (size_t)h);
+    if (!pageBmp) return;
+    pageBmp->width = (unsigned short)w; pageBmp->height = (unsigned short)h; pageBmp->depth = 8; pageBmp->scanline = (unsigned short)w;
   }
+  if (cre_render(pageBmp->data, w, h) == 0) DrawBitmap(0, SB, pageBmp);
 }
 static void v_book(View *v) {
-  int by = SH - 3 * U, mar = margin_px(), pm; char info[160], title[120] = "";
+  int by = page_by(), mar = margin_px(), pm; char info[160], title[200] = "";
   (void)v;
-  if (curch < 0) { header("Lector", "No hi ha cap llibre obert."); return; }
-  if (needLayout) relayout();
-  draw_reading();
+  if (!cre_is_open() || rb < 0) { header("Lector", "No hi ha cap llibre obert."); return; }
+  draw_page();
   /* zones de tacte: tercer esquerre = enrere, la resta = endavant; la barra inferior obre el menú */
   add_hit(0, SB, SW * 3 / 10, by - SB, A_TAPPREV, 0);
   add_hit(SW * 3 / 10, SB, SW - SW * 3 / 10, by - SB, A_TAPNEXT, 0);
-  pm = cur_pm();
-  progress_bar(mar, by + U / 4, SW - 2 * mar, 4, pm);
-  {
-    int ti = -1, k;
-    for (k = 0; k < ntoc; k++) if (toc[k].chap <= curch) ti = k;
-    if (ti >= 0) snprintf(title, sizeof(title), "%s", toc[ti].title);
-    else if (rb >= 0) snprintf(title, sizeof(title), "%s", bk[rb].title);
-  }
-  snprintf(info, sizeof(info), "pàg. %d de %d  ·  %d,%d %%", cp + 1, npg, pm / 10, pm % 10);
+  pm = cre_percent();
+  progress_bar(mar, by + U / 4, SW - 2 * mar, 4, pm / 10);
+  if (cre_chapter_title(title, sizeof(title)) != 0 || !title[0]) snprintf(title, sizeof(title), "%s", bk[rb].title);
+  snprintf(info, sizeof(info), "pàg. %d de %d  ·  %d,%d %%", cre_page() + 1, cre_pages(), pm / 100, pm / 10 % 10);
   SetFont(fSmall, BLACK);
   DrawTextRect(mar, by + U / 2, SW - 2 * mar - 9 * U, 2 * U, title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
   DrawTextRect(SW - mar - 9 * U, by + U / 2, 9 * U, 2 * U, info, ALIGN_RIGHT | VALIGN_MIDDLE);
@@ -1031,7 +814,7 @@ static void v_book(View *v) {
 static void v_menu(View *v) {
   int y = TOP, bh = 2 * U, gap = U / 3, w3 = (SW - U - 2 * gap) / 3, w2 = (SW - U - gap) / 2, x0 = U / 2; char t[60];
   (void)v;
-  if (rb < 0 || curch < 0) { header("Lector", "No hi ha cap llibre obert."); return; }
+  if (rb < 0 || !cre_is_open()) { header("Lector", "No hi ha cap llibre obert."); return; }
   header(bk[rb].title, bk[rb].author);
   button(x0, y, SW - U, bh, "Torna a la lectura", 1, A_READ, 0); y += bh + 2 * gap;
   SetFont(fSmall, BLACK); DrawTextRect(x0, y, SW - U, U, "Mida de la lletra", ALIGN_LEFT | VALIGN_MIDDLE); y += U;
@@ -1047,30 +830,36 @@ static void v_menu(View *v) {
   button(x0 + 2 * (w3 + gap), y, w3, bh, "Ampli", cfg.spc == 2, A_FSPC, 2); y += bh + gap;
   SetFont(fSmall, BLACK); DrawTextRect(x0, y, SW - U, U, "Marges", ALIGN_LEFT | VALIGN_MIDDLE); y += U;
   button(x0, y, w3, bh, "Estrets", cfg.mar == 0, A_FMAR, 0); button(x0 + w3 + gap, y, w3, bh, "Normals", cfg.mar == 1, A_FMAR, 1);
-  button(x0 + 2 * (w3 + gap), y, w3, bh, "Amples", cfg.mar == 2, A_FMAR, 2); y += bh + 2 * gap;
+  button(x0 + 2 * (w3 + gap), y, w3, bh, "Amples", cfg.mar == 2, A_FMAR, 2); y += bh + gap;
+  SetFont(fSmall, BLACK); DrawTextRect(x0, y, SW - U, U, "Composició", ALIGN_LEFT | VALIGN_MIDDLE); y += U;
+  button(x0, y, w2, bh, "Justificat", cfg.just, A_FJUST, 0); button(x0 + w2 + gap, y, w2, bh, "Partició de mots", cfg.hyph, A_FHYPH, 0); y += bh + 2 * gap;
   button(x0, y, SW - U, bh, "Continguts", 0, A_TOC, 0); y += bh + gap;
   button(x0, y, SW - U, bh, "Anar a un percentatge", 0, A_GOTO, 0); y += bh + gap;
   button(x0, y, SW - U, bh, "Tanca el llibre", 0, A_CLOSE, 0); y += bh + gap;
-  if (y + 3 * U < BOTTOM + NAVH) {
-    SetFont(block_font(K_P), BLACK);
-    DrawTextRect(x0, y + gap, SW - U, BOTTOM + NAVH - y - gap, "Així es veurà el text del llibre: lletra, interlineat i marges.", ALIGN_LEFT | VALIGN_TOP);
+  if (y + 2 * U < BOTTOM + NAVH) {
+    snprintf(t, sizeof(t), "Lletra: %s · motor CREngine", cre_font_name(cfg.fam));
+    SetFont(fSmall, PAL(P_SUB)); DrawTextRect(x0, y + gap, SW - U, U + U / 2, t, ALIGN_LEFT | VALIGN_TOP | DOTS);
   }
 }
 static void v_toc(View *v) {
-  int y = TOP, rh = 2 * U + U / 4, per, i, cur = -1, k; char sub[40];
-  if (rb < 0 || curch < 0) { header("Continguts", ""); return; }
-  for (k = 0; k < ntoc; k++) if (toc[k].chap <= curch) cur = k;
-  snprintf(sub, sizeof(sub), ntoc == 1 ? "%d entrada" : "%d entrades", ntoc);
+  int y = TOP, rh = 2 * U + U / 4, per, i, cur = -1, n = cre_toc_count(), p = cre_page(); char sub[40], t[300];
+  if (rb < 0 || !cre_is_open()) { header("Continguts", ""); return; }
+  for (i = 0; i < n; i++) { int lv, pg; if (cre_toc_get(i, t, sizeof(t), &lv, &pg) == 0 && pg <= p) cur = i; }
+  snprintf(sub, sizeof(sub), n == 1 ? "%d entrada" : "%d entrades", n);
   header("Continguts", sub);
+  if (n == 0) { SetFont(fText, BLACK); DrawTextRect(U / 2, y, SW - U, 4 * U, "Aquest llibre no té índex.", ALIGN_LEFT | VALIGN_TOP); return; }
   per = (BOTTOM - y) / rh; if (per < 1) per = 1;
-  pages = ntoc ? (ntoc + per - 1) / per : 1;
+  pages = (n + per - 1) / per;
   if (v->a == 0) { v->a = 1; if (cur >= 0) v->page = cur / per; }
   if (v->page >= pages) v->page = pages - 1;
-  for (i = v->page * per; i < ntoc && i < (v->page + 1) * per; i++) {
-    int ind = toc[i].lvl * U;
+  for (i = v->page * per; i < n && i < (v->page + 1) * per; i++) {
+    int lv = 0, pg = 0, ind; char pn[16];
+    cre_toc_get(i, t, sizeof(t), &lv, &pg);
+    ind = (lv > 4 ? 4 : lv) * U;
+    snprintf(pn, sizeof(pn), "%d", pg + 1);
     SetFont(i == cur ? fBold : fText, BLACK);
-    DrawTextRect(U / 2 + ind, y, SW - U - ind - (i == cur ? 2 * U : 0), rh - U / 4, toc[i].title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
-    if (i == cur) disc(SW - U - U / 2, y + (rh - U / 4) / 2, U / 4, BLACK);
+    DrawTextRect(U / 2 + ind, y, SW - U - ind - 3 * U, rh - U / 4, t, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
+    SetFont(fSmall, PAL(P_SUB)); DrawTextRect(SW - U / 2 - 3 * U, y, 3 * U, rh - U / 4, pn, ALIGN_RIGHT | VALIGN_MIDDLE);
     DrawLine(U / 2, y + rh - U / 8, SW - U / 2, y + rh - U / 8, LGRAY);
     add_hit(U / 2, y, SW - U, rh - U / 4, A_TOCGO, i);
     y += rh;
@@ -1086,50 +875,48 @@ static void mod_draw(View *v) {
   }
 }
 static void goto_fn(const char *t) {
-  double pct = parse_num(t), pos, frac; int k, ci;
-  if (curch < 0 || nch < 1) return;
+  double pct = parse_num(t);
+  if (!cre_is_open()) return;
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
-  pos = totalBytes * pct / 100.0; ci = nch - 1;
-  for (k = 0; k < nch; k++) if (chs[k].start + (double)(chs[k].usize ? chs[k].usize : 1) > pos) { ci = k; break; }
-  frac = (pos - chs[ci].start) / (double)(chs[ci].usize ? chs[ci].usize : 1);
-  if (frac < 0) frac = 0;
-  if (frac > 1) frac = 1;
-  ch_load(ci);
-  cp = page_of((long)(frac * (double)txtlen));
+  cre_goto_percent((int)(pct * 100));
   save_pos();
   POP();
 }
 static void turn(int dir) {
-  int c0 = curch, p0 = cp;
-  if (curch < 0) return;
-  if (dir > 0) go_next(); else go_prev();
-  if (c0 == curch && p0 == cp) return;
+  if (!cre_is_open()) return;
+  if (!(dir > 0 ? cre_next() : cre_prev())) return;
   save_pos();
   draw(++turns % 6 == 0);        /* cada sis pàgines, refresc complet per netejar la tinta */
 }
+static void relayout_draw(void) { cfg_save(); draw(0); }
 static void mod_action(View *v, int a, int arg) {
   (void)v;
   switch (a) {
-    case A_OPEN:
-      if (book_open(arg) != 0) { say("No s'ha pogut obrir aquest llibre."); draw(1); }
+    case A_OPEN: {
+      int r = book_open(arg);
+      if (r == -2) { say("No s'han trobat fonts per compondre el llibre."); draw(1); }
+      else if (r != 0) { say("No s'ha pogut obrir aquest llibre."); draw(1); }
       else push(V_BOOK, arg, 0, 0, NULL);
-      break;
+      break; }
     case A_SCAN: lib_scan(); v->page = 0; draw(1); break;
     case A_TAPPREV: turn(-1); break;
     case A_TAPNEXT: turn(1); break;
     case A_MENU: save_pos(); push(V_MENU, 0, 0, 0, NULL); break;
     case A_TOC: push(V_TOC, 0, 0, 0, NULL); break;
-    case A_TOCGO:
-      if (arg >= 0 && arg < ntoc) { goto_chapter(toc[arg].chap, toc[arg].frag); save_pos(); POP(); POP(); draw(1); }
-      break;
-    case A_FSIZE: cfg.size += arg; if (cfg.size < 0) cfg.size = 0; if (cfg.size > 7) cfg.size = 7; cfg_save(); needLayout = 1; draw(0); break;
-    case A_FFAM: cfg.fam = arg; cfg_save(); needLayout = 1; draw(0); break;
-    case A_FSPC: cfg.spc = arg; cfg_save(); needLayout = 1; draw(0); break;
-    case A_FMAR: cfg.mar = arg; cfg_save(); needLayout = 1; draw(0); break;
+    case A_TOCGO: {
+      char t[8]; int lv, pg;
+      if (cre_toc_get(arg, t, sizeof(t), &lv, &pg) == 0) { cre_goto_page(pg); save_pos(); POP(); POP(); draw(1); }
+      break; }
+    case A_FSIZE: cfg.size += arg; if (cfg.size < 0) cfg.size = 0; if (cfg.size > 7) cfg.size = 7; relayout_draw(); break;
+    case A_FFAM: cfg.fam = arg; relayout_draw(); break;
+    case A_FSPC: cfg.spc = arg; relayout_draw(); break;
+    case A_FMAR: cfg.mar = arg; relayout_draw(); break;
+    case A_FJUST: cfg.just = !cfg.just; relayout_draw(); break;
+    case A_FHYPH: cfg.hyph = !cfg.hyph; relayout_draw(); break;
     case A_GOTO: ask("Anar al percentatge del llibre (0-100)", "", goto_fn); break;
     case A_READ: POP(); draw(1); break;
-    case A_CLOSE: save_pos(); ch_free(); curch = -1; rb = -1; bk_close(); POP(); POP(); draw(1); break;
+    case A_CLOSE: book_close(); POP(); POP(); draw(1); break;
   }
 }
 static int mod_back(View *v) { if (v->type == V_BOOK) save_pos(); return 0; }

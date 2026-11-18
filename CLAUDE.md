@@ -7,8 +7,9 @@ i escriu en català tot el text de la interfície.
 
 - `src/base.c`, `src/base_gen.h`: sistema base (inici amb preferits, barra d'estat, tauler ràpid, avisos, gestor de paquets, Configuració amb «Sobre el dispositiu», actualització).
 - `src/mod.h`: interfície entre el sistema base (`Host`) i els paquets (`Module`, `Widget`, `StatusItem`). `ESC_API` n'és la versió (7; els paquets declaren `ESC_API_MIN` i comproven `H->api` abans d'usar funcions noves). Inclou les formes, la paleta del tema (`PAL`) i els components; `src/ui.h` hi afegeix els components amb text i tacte (files, interruptors, rajoles). `src/icons.h` té les icones (camins SVG del prototip) i `src/gfx.h` les dibuixa (`ic_path`).
-- `src/apps/<id>.c`: un fitxer per paquet (Bus AMB té a més `src/apps/busamb/`; el Doom, `src/apps/doom/`, codi GPL v2 del PBDoom amb els canvis llistats a `LLEGEIX.md`, que es compila a part sense avisos). `src/packages.txt`: nom, versió i descripció de cada paquet.
+- `src/apps/<id>.c`: un fitxer per paquet (Bus AMB té a més `src/apps/busamb/`; el Doom, `src/apps/doom/`, codi GPL v2 del PBDoom amb els canvis llistats a `LLEGEIX.md`, que es compila a part sense avisos; el Lector, `src/apps/lector/`, el pont amb el motor CREngine, vegeu-ne `LLEGEIX.md`). `src/packages.txt`: nom, versió i descripció de cada paquet.
 - `packages/`: paquets compilats (`.pkg`) i catàleg `index.txt`. `Escriptori.app` i `version.txt`: sistema base publicat.
+- `tools/cre/build_deps.sh`: compila el CREngine i les seves biblioteques (versions fixades; el codi es baixa a `$CRE_SRC`, per defecte `~/cre-src`) a `build/cre-arm` o `build/cre-sim`. Els guions de compilació el criden sols si falta. Els pegats al CREngine són a `tools/cre/patches/`.
 - `src/jobs.h`: fil de treball per a les descàrregues en segon pla (libcurl carregada amb dlopen; si no hi és o falla el TLS, descàrrega bloquejant).
 - `src/shim/`: substitut de la biblioteca gràfica per provar a l'ordinador. `test/`: guions de prova i dades d'exemple.
 - `docs/NOVA_APP.md`: com crear un paquet nou (components, widgets, ranures d'estat i avisos).
@@ -16,7 +17,7 @@ i escriu en català tot el text de la interfície.
 ## Flux de treball
 
 1. Canvia el codi.
-2. Prova al simulador: `./build_sim.sh` (en 32 bits, com el lector: cal `gcc-multilib`), després executa `sim/uitest < test/<guió>.cmd` des de `sim/` (cal l'estructura
+2. Prova al simulador: `./build_sim.sh` (en 32 bits, com el lector: cal `gcc-multilib` i `g++-multilib`), després executa `sim/uitest < test/<guió>.cmd` des de `sim/` (cal l'estructura
    `sim/flash/system/config`, `sim/flash/system/escriptori/packages` i `sim/flash/applications` (sense `system/` les instal·lacions fallen en silenci) i, per a la xarxa simulada, `sim/net/repo/` amb el catàleg: `python3 tools/mkindex.py src/packages.txt sim/net/repo/packages`, i torna-ho a fer després de cada `build_sim.sh`, o les sumes de control no coincidiran).
    Al simulador les descàrregues es fan a l'instant; amb `ASYNC=1` passen pel fil, i `SIMNETMS=n` hi afegeix n ms de retard. `tapp text` pagina fins que troba el text; `mt x y` i `mtup` simulen un dit (multitàctil) i `polls n` executa n voltes dels temporitzadors.
    La prova del Doom (`test/tour_doom.cmd`) vol un simulador net amb els paquets instal·lats (`tour_store`) i un WAD a `sim/flash/Doom` (p. ex. `freedoom1.wad`; no és al repositori).

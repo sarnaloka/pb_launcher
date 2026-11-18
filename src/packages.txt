@@ -11,7 +11,7 @@ sudoku|Sudoku|5|Partides amb solució única que es desen soles.
 buscamines|Buscamines|5|El clàssic, en un taulell de 9 per 9.
 temps|El temps|7|Temps actual, per hores i de 10 dies, amb detalls (UV, vent, sol…) per a les teves ciutats (cal Wi-Fi).
 noticies|Notícies|6|Titulars de canals RSS, desats per llegir sense connexió.
-lector|Lector|5|Biblioteca i lector de llibres EPUB: continguts, mida de lletra i progrés desat.
+lector|Lector|6|Biblioteca i lector d'EPUB amb el motor CREngine (el del KOReader i el Kobalt): text justificat, partició de mots en català, CSS i fonts dels llibres.
 xat|Xat|3|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
 ftp|FTP|3|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).
 doom|Doom|1|El clàssic de tirs (PBDoom), amb controls tàctils. Cal copiar un fitxer WAD a la carpeta «Doom» del lector (serveixen els lliures de Freedoom).

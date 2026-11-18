@@ -1395,7 +1395,7 @@ static void v_mon(View *v) {
   if (ma < 0) { long fr = proc_val("/proc/meminfo", "MemFree:"), ca = proc_val("/proc/meminfo", "Cached:"); ma = fr >= 0 ? fr + (ca > 0 ? ca : 0) : -1; }
   cpu = cpu_pct();
   header("Monitor", "Què hi ha en marxa ara mateix");
-  snprintf(gv[0], 24, rss >= 0 ? "%ld MB" : "—", (rss + 512) / 1024); gp[0] = mt > 0 && ma >= 0 ? (int)((mt - ma) * 100 / mt) : 0;
+  snprintf(gv[0], 24, rss >= 0 ? "%ld MB" : "—", (rss + 512) / 1024); gp[0] = mt > 0 && ma >= 0 ? (int)((long long)(mt - ma) * 100 / mt) : 0;
   if (mt > 0 && ma >= 0) snprintf(gn[0], 60, "lector: %d%% ocupada", gp[0]); else snprintf(gn[0], 60, "de l'Escriptori");
   snprintf(gv[1], 24, cpu >= 0 ? "%d%%" : "—", cpu); gp[1] = cpu > 0 ? cpu : 0; snprintf(gn[1], 60, "des de l'última mirada");
   snprintf(gv[2], 24, "%d%%", batt_pct()); gp[2] = batt_pct(); snprintf(gn[2], 60, "%s", IsCharging() ? "carregant" : "sense carregar");
@@ -1422,7 +1422,7 @@ static void v_mon(View *v) {
     pthread_mutex_lock(&jm); st = jobs[k].state; dn = jobs[k].done; tot = jobs[k].total; pthread_mutex_unlock(&jm);
     if (st != J_QUEUED && st != J_RUNNING) continue;
     memset(&r[n], 0, sizeof(MRow)); r[n].kind = MR_JOB; r[n].idx = k; r[n].ic = IC_DOWNLOAD; snprintf(r[n].name, 64, "%s", jobs[k].title);
-    if (st == J_RUNNING && tot > 0) snprintf(r[n].state, 120, "Baixant · %d%%", (int)(dn * 100 / tot)); else snprintf(r[n].state, 120, "%s", st == J_RUNNING ? "Baixant" : "A la cua");
+    if (st == J_RUNNING && tot > 0) snprintf(r[n].state, 120, "Baixant · %d%%", (int)((long long)dn * 100 / tot)); else snprintf(r[n].state, 120, "%s", st == J_RUNNING ? "Baixant" : "A la cua");
     n++;
   }
   { int on = 0; long nxt = -1; for (k = 0; k < nbg; k++) if (bgt[k].on && bgt[k].start) { long d = bgt[k].last + (long)bgt[k].every * 60 - (long)time(NULL); on++; if (nxt < 0 || d < nxt) nxt = d; }
@@ -1480,7 +1480,7 @@ static void v_jobs(View *v) {
     if (st != J_QUEUED && st != J_RUNNING) continue;
     if (k) FillArea(U, y, SW - 2 * U, 2, PAL(P_LINE));
     SetFont(fBold, PAL(P_FG)); DrawTextRect(bx, y + U / 4, SW - 3 * U - 6 * U, U + U / 2, jobs[i].title, ALIGN_LEFT | VALIGN_MIDDLE | DOTS);
-    if (st == J_RUNNING && tot > 0) { char d1[24], d2[24]; pct = (int)(dn * 100 / tot); fmt_size(d1, sizeof(d1), dn); fmt_size(d2, sizeof(d2), tot); snprintf(t, sizeof(t), "%s de %s", d1, d2); }
+    if (st == J_RUNNING && tot > 0) { char d1[24], d2[24]; pct = (int)((long long)dn * 100 / tot); fmt_size(d1, sizeof(d1), dn); fmt_size(d2, sizeof(d2), tot); snprintf(t, sizeof(t), "%s de %s", d1, d2); }
     else snprintf(t, sizeof(t), "%s", st == J_RUNNING ? "baixant…" : "a la cua");
     SetFont(fSmall, PAL(P_SUB)); DrawTextRect(SW - U - 6 * U - U / 2, y + U / 4, 6 * U, U + U / 2, t, ALIGN_RIGHT | VALIGN_MIDDLE | DOTS);
     by = y + 2 * U + U / 4;

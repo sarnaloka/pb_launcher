@@ -1,0 +1,14 @@
+diff --git a/crengine/src/lvstsheet.cpp b/crengine/src/lvstsheet.cpp
+index 50ccac3..1b6d481 100644
+--- a/crengine/src/lvstsheet.cpp
++++ b/crengine/src/lvstsheet.cpp
+@@ -6316,7 +6316,8 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
+                     }
+                 }
+                 else if ( only_if == cr_only_if_line_height_normal || only_if == cr_only_if_not_line_height_normal ) {
+-                    if ( const ldomNode * parent_node = node->getParentNode(); style->line_height == css_length_t(css_val_inherited, 0) && parent_node ) {
++                    const ldomNode * parent_node = node->getParentNode(); // Escriptori: C++14 (sense «if» amb declaració)
++                    if ( style->line_height == css_length_t(css_val_inherited, 0) && parent_node ) {
+                         const css_style_ref_t parent_style = node->getParentNode()->getStyle();
+                         if ( !parent_style.isNull() && parent_style->line_height == css_length_t(css_val_unspecified, css_generic_normal) ) {
+                             if ( only_if == cr_only_if_not_line_height_normal )

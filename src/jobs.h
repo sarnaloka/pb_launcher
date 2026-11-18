@@ -138,7 +138,7 @@ static int jobs_progress(void) {
   int i, p = -1;
   pthread_mutex_lock(&jm);
   for (i = 0; i < MAXJOBS; i++) {
-    if (jobs[i].state == J_RUNNING) { p = jobs[i].total > 0 ? (int)(jobs[i].done * 100 / jobs[i].total) : 101; break; }
+    if (jobs[i].state == J_RUNNING) { p = jobs[i].total > 0 ? (int)((long long)jobs[i].done * 100 / jobs[i].total) : 101; break; }
     if (jobs[i].state == J_QUEUED && p < 0) p = 101;
   }
   pthread_mutex_unlock(&jm);
