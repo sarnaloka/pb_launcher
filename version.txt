@@ -1,5 +1,5 @@
-12
+13
 211096
-c505bbe1
-Versió 2.4: els paquets poden rebre el multitàctil i tornar-se a carregar nets en tancar-los. Nou paquet a la Botiga: Doom (cal copiar un fitxer WAD a la carpeta «Doom» del lector). Després d'actualitzar, surt i torna a obrir l'Escriptori.
-2.4
+f16ffad1
+Versió 2.5: els paquets poden ocupar tota la pantalla, sense la barra d'estat (el Lector nou ho fa servir per llegir), i les descàrregues grans (més de 20 MB) ja mostren bé el percentatge. A la Botiga, el Lector 7, amb el menú de lectura del Kobalt. Després d'actualitzar, surt i torna a obrir l'Escriptori.
+2.5

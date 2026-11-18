@@ -89,4 +89,20 @@
 #define IC_DISC15      "M12-3a15 15 0 1 0 0 30a15 15 0 1 0 0-30z"   /* cercle de fons de 30 (amb marge 3) */
 #define IC_DOOM        "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 2v5M12 17v5M2 12h5M17 12h5M12 11.5v1"   /* punt de mira (Doom) */
 #define IC_CLEAN       "M5 5h14v14H5zM9 15l6-6M12 16l4-4M8 12l4-4"
+
+/* Lector estil Kobalt (prototip 2.4, pàgina «2.4 · Lector»): camins exactes del dibuix */
+#define IC_LK_BACK     "M15 5l-7 7 7 7"
+#define IC_LK_MARK     "M7 4h10v16l-5-4-5 4z"
+#define IC_LK_SET      "M5 7h8M17 7h2M5 17h2M11 17h8M15 5v4M9 15v4"
+#define IC_LK_UP       "M6 15l6-6 6 6"
+#define IC_LK_DOWN     "M6 9l6 6 6-6"
+#define IC_LK_RIGHT    "M9 6l6 6-6 6"
+#define IC_LK_PREVCH   "M12 6l-6 6 6 6M19 6l-6 6 6 6"
+#define IC_LK_NEXTCH   "M5 6l6 6-6 6M12 6l6 6-6 6"
+#define IC_LK_TOC      "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"
+#define IC_LK_NAV      "M4 5h4v14H4zM10 5h4v14h-4zM16 5h4v14h-4z"
+#define IC_LK_TEXT     "M4 19l5-14 5 14M6 14h6M15 19v-7.5a2.5 2.5 0 0 1 5 0V19M15 15.5h5"
+#define IC_LK_LAYOUT   "M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"
+#define IC_LK_GRID     "M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"
+#define IC_LK_CLOSE    "M6 6l12 12M18 6L6 18"
 #endif

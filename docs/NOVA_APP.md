@@ -157,3 +157,13 @@ Tot això només existeix si `H->api >= 6`; comprova-ho abans d'usar-ho.
   a carregar, perquè la propera vegada comenci amb les variables netes. Allibera la memòria a `on_unload`.
 - Un paquet que ho necessiti declara `api = 7` al `Module`: un sistema anterior no el carregarà.
 - Vegeu `src/apps/doom.c`.
+
+## Pantalla completa (ESC_API 8)
+
+- `int escriptori_fullscreen(const View *v)`: si torna 1 per a la vista de dalt de tot, el sistema no hi dibuixa la barra
+  d'estat ni el peu amb les fletxes de pàgina, i la barra no es repinta sola. El paquet dibuixa entre `y = 0` i `SH`
+  (no a partir de `SB`) i ha d'oferir una manera de sortir: un botó propi o el botó enrere del lector. Tocar la pantalla
+  no obre el tauler ràpid. A la pantalla dividida no s'aplica mai: la vista té la barra i el panell com sempre.
+- Els botons de pàgina del lector (i les fletxes del sistema) continuen canviant `v->page` dins de `pages`; el Lector en
+  fa servir tres (0, 1, 2) per saber cap on volia anar i torna a posar `v->page = 1`.
+- Un paquet que ho necessiti declara `api = 8` al `Module`. Vegeu `src/apps/lector.c` (`v_book` i `v_menu`).

@@ -10,7 +10,7 @@ sudoku|Sudoku|5|17852|443affb7|Partides amb solució única que es desen soles.
 buscamines|Buscamines|5|13728|4a0ab547|El clàssic, en un taulell de 9 per 9.
 temps|El temps|7|63100|eacff916|Temps actual, per hores i de 10 dies, amb detalls (UV, vent, sol…) per a les teves ciutats (cal Wi-Fi).
 noticies|Notícies|6|22068|3b10f33d|Titulars de canals RSS, desats per llegir sense connexió.
-lector|Lector|6|6308128|8656d735|Biblioteca i lector d'EPUB amb el motor CREngine (el del KOReader i el Kobalt): text justificat, partició de mots en català, CSS i fonts dels llibres.
+lector|Lector|7|6357400|214e5405|Biblioteca i lector d'EPUB amb el motor CREngine (el del KOReader i el Kobalt), a pantalla completa i amb el menú del Kobalt: navegació amb miniatures, predefinits, fonts, marges, marcadors i cerca.
 xat|Xat|3|26208|466e6c98|Xat per Wi-Fi amb el mòbil o l'ordinador des del navegador (mateixa xarxa).
 ftp|FTP|3|34464|36bb6a16|Servidor FTP per passar fitxers i llibres entre el lector i l'ordinador o el mòbil (mateixa xarxa).
 doom|Doom|1|395708|b4bcaeaf|El clàssic de tirs (PBDoom), amb controls tàctils. Cal copiar un fitxer WAD a la carpeta «Doom» del lector (serveixen els lliures de Freedoom).

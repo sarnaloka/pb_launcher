@@ -18,6 +18,7 @@ static bool haveLayout;
 static lString8 baseCss;
 static lString8 faceSans, faceSerif;
 static LVArray<LVTocItem *> tocFlat;
+static lString32Collection faceList;
 
 static void toc_flatten(LVTocItem *it) {
   if (!it) return;
@@ -58,6 +59,7 @@ extern "C" int cre_init(const char *datadir, const char *const *fontdirs, const 
   for (int i = 0; fontdirs && fontdirs[i]; i++) register_fonts(fontdirs[i], 0);
   fontMan->getFaceList(faces);
   if (faces.length() == 0) return -1;
+  faceList = faces; faceList.sort();
   faceSans = pick_face(SANS, faces); faceSerif = pick_face(SERIF, faces);
   fontMan->SetFallbackFontFaces(lString8("DejaVu Sans;Liberation Sans;Noto Sans"));
   fontMan->SetKerningMode(KERNING_MODE_HARFBUZZ);
@@ -85,11 +87,11 @@ static void settle(void) {
 static void apply_props(const CreLayout *l) {
   CRPropRef p = LVCreatePropsContainer();
   lString8 css = baseCss;
-  p->setString(PROP_FONT_FACE, (l->serif ? faceSerif : faceSans).c_str());
+  p->setString(PROP_FONT_FACE, l->face[0] ? l->face : (l->serif ? faceSerif : faceSans).c_str());
   p->setInt(PROP_FONT_SIZE, l->font_px);
   p->setInt(PROP_INTERLINE_SPACE, l->interline);
   p->setInt(PROP_EMBEDDED_STYLES, l->embedded_styles ? 1 : 0);
-  p->setInt(PROP_EMBEDDED_FONTS, l->embedded_styles ? 1 : 0);
+  p->setInt(PROP_EMBEDDED_FONTS, l->embedded_fonts ? 1 : 0);
   p->setString(PROP_TEXTLANG_MAIN_LANG, "ca");
   p->setInt(PROP_TEXTLANG_EMBEDDED_LANGS_ENABLED, 1);
   p->setInt(PROP_TEXTLANG_HYPHENATION_ENABLED, l->hyphenate ? 1 : 0);
@@ -101,7 +103,8 @@ static void apply_props(const CreLayout *l) {
   dv->propsApply(p);
   dv->setPageHeaderInfo(PGHDR_NONE);               /* la capçalera i el peu els dibuixa el Lector */
   /* justificació: el text dels paràgrafs; els títols i el que el llibre centra no es toquen */
-  css += l->justify ? "\np { text-align: justify; }\n" : "\np { text-align: start; }\n";
+  if (l->align == 0) css += "\np { text-align: start; }\n";   /* sense !important: el text que el llibre centra es queda centrat */
+  else if (l->align == 1) css += "\np { text-align: justify; }\n";
   dv->setStyleSheet(css);
   dv->setPageMargins(lvRect(l->margin_x, l->margin_top, l->margin_x, l->margin_bottom));
   dv->Resize(l->w, l->h);
@@ -196,3 +199,43 @@ extern "C" int cre_chapter_title(char *out, int max) {
   return 0;
 }
 extern "C" const char *cre_font_name(int serif) { return (serif ? faceSerif : faceSans).c_str(); }
+
+extern "C" int cre_font_count(void) { return faceList.length(); }
+extern "C" int cre_font_get(int i, char *out, int max) {
+  if (i < 0 || i >= faceList.length()) return -1;
+  snprintf(out, (size_t)max, "%s", UnicodeToUtf8(faceList[i]).c_str());
+  return 0;
+}
+extern "C" int cre_render_page(int page, unsigned char *gray, int w, int h) {
+  int keep;
+  if (!opened || page < 0 || page >= cre_pages()) return -1;
+  keep = cre_page();
+  if (page != keep) dv->goToPage(page, false, false);
+  cre_render(gray, w, h);
+  if (page != keep) dv->goToPage(keep, false, false);
+  return 0;
+}
+extern "C" int cre_search(const char *q, CreHit *hits, int max) {
+  ldomXRangeList ranges; int n = 0;
+  if (!opened || !q || !q[0] || max <= 0) return 0;
+  if (!dv->getDocument()->findText(Utf8ToUnicode(lString8(q)), true, false, 0, -1, ranges, max, -1)) return 0;
+  for (int i = 0; i < ranges.length() && n < max; i++) {
+    ldomXRange *r = ranges[i];
+    ldomXPointer st = r->getStart();
+    ldomNode *nd = st.getNode();
+    lString32 t = nd ? nd->getText() : lString32();
+    int off = st.getOffset(), a = off > 24 ? off - 24 : 0;
+    while (a > 0 && a < off && t[a - 1] != ' ') a++;        /* comença en un mot sencer, poc abans del que s'ha trobat */
+    lString32 snip = t.substr(a, 140);
+    if (a > 0) snip = U"…" + snip;
+    hits[n].page = dv->getBookmarkPage(st);
+    snprintf(hits[n].text, sizeof(hits[n].text), "%s", UnicodeToUtf8(snip).c_str());
+    n++;
+  }
+  return n;
+}
+extern "C" int cre_bookmark_page(const char *xp) {
+  if (!opened || !xp || !xp[0]) return -1;
+  ldomXPointer bm = dv->getDocument()->createXPointer(Utf8ToUnicode(lString8(xp)));
+  return bm.isNull() ? -1 : dv->getBookmarkPage(bm);
+}

@@ -140,7 +140,8 @@ static void statusbar(int withHits) {
    Si una peça canvia d'amplada i la resta es desplaça, s'actualitza tota la zona dreta. */
 static void pane_leave(void); static void pane_enter(int p);
 static void sb_refresh_(void);
-static void sb_refresh(void) { int inp = inPane; if (quick_open()) return; if (inp >= 0) pane_leave(); sb_refresh_(); if (inp >= 0) pane_enter(inp); }
+static int top_full(void);
+static void sb_refresh(void) { int inp = inPane; if (quick_open() || top_full()) return; if (inp >= 0) pane_leave(); sb_refresh_(); if (inp >= 0) pane_enter(inp); }
 static void sb_refresh_(void) {
   int oSig[NSYS], oX[40], oW[40], oN = sbN, i, lay = 0, x0 = SW, x1 = 0, ch = 0;
   memcpy(oSig, sbSig, sizeof(oSig)); memcpy(oX, sbX, sizeof(oX)); memcpy(oW, sbW, sizeof(oW));

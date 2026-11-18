@@ -5,8 +5,8 @@
 #include <sys/statvfs.h>
 #include <limits.h>
 
-#define APP_BUILD 12
-#define APP_VERNAME "2.4"
+#define APP_BUILD 13
+#define APP_VERNAME "2.5"
 #define UPD_BASE "https://raw.githubusercontent.com/sarnaloka/pb_launcher/main/"
 #define SYSDIR FLASHDIR "/system/escriptori"
 #define PKGDIR SYSDIR "/packages"
@@ -217,11 +217,12 @@ static void upd_region(int x, int y, int w, int h) { if (escDark) InvertArea(x, 
 #include "jobs.h"
 
 /* ───────────── paquets carregats ───────────── */
-typedef struct { void *dl; Module *m; char id[48]; int split, reload; int (*ev)(int, int, int); } Loaded;
+typedef struct { void *dl; Module *m; char id[48]; int split, reload; int (*ev)(int, int, int); int (*full)(const View *); } Loaded;
 /* Exportacions opcionals d'un paquet (API 7):
    escriptori_split  — pot sortir a la pantalla dividida;
    escriptori_event  — rep els tocs directes (també el multitàctil, EVT_MTSYNC) quan és a primer pla; si torna 1, el sistema no els tracta;
-   escriptori_reload — en tancar-lo des d'«Apps obertes», el sistema el descarrega i el torna a carregar (estat net). */
+   escriptori_reload — en tancar-lo des d'«Apps obertes», el sistema el descarrega i el torna a carregar (estat net).
+   escriptori_fullscreen(View *) (API 8) — si torna 1 per a una vista, aquesta es dibuixa sense la barra d'estat. */
 #define MAXMODS 64
 static Loaded mods[MAXMODS]; static int nmods;
 static Host host;
@@ -240,6 +241,7 @@ static int mod_load(const char *id) {
   for (i = nmods; i > 0 && strcasecmp(mods[i - 1].m->name, m->name) > 0; i--) mods[i] = mods[i - 1];
   mods[i].dl = dl; mods[i].m = m; snprintf(mods[i].id, sizeof(mods[i].id), "%s", id); mods[i].split = dlsym(dl, "escriptori_split") != NULL; mods[i].reload = dlsym(dl, "escriptori_reload") != NULL;
   *(void **)&mods[i].ev = dlsym(dl, "escriptori_event");
+  *(void **)&mods[i].full = dlsym(dl, "escriptori_fullscreen");
   nmods++;
   return 0;
 }
@@ -1671,6 +1673,11 @@ static int tick_redraw(void) {
   return v->type == V_DESK;
 }
 static void render_view(View *v);
+/* Vista d'un paquet a pantalla completa (sense barra d'estat): escriptori_fullscreen. Mai a la pantalla dividida. */
+static int view_full(View *v) {
+  return v && v->mod >= 0 && v->mod < nmods && mods[v->mod].full && !split_on() && mods[v->mod].full(v);
+}
+static int top_full(void) { return depth >= 1 && view_full(&stack[depth - 1]); }
 static void render(void) {
   View *v = &stack[depth - 1];
   int pass;
@@ -1679,16 +1686,16 @@ static void render(void) {
   for (pass = 0; pass < 2; pass++) {
     int before = v->page;
     ClearScreen(); FillArea(0, 0, SW, SH, PAL(P_BG)); nhits = 0; pages = 1; footY = SH - NAVH - U / 4; wallOn = 0;
-    statusbar(1);
+    if (!view_full(v) && !(v->mod < 0 && v->type == V_QUICK && depth >= 2 && view_full(&stack[depth - 2]))) statusbar(1);
     if (v->mod < 0 && v->type == V_QUICK && depth >= 2) {   /* tauler ràpid: primer la pantalla de sota, sense tocs */
       View *u = &stack[depth - 2];
-      depth--; render_view(u); if (u->page < 0) u->page = 0; if (!(u->mod < 0 && (u->type == V_DESK || u->type == V_SPLIT))) footer(u->page); depth++;
+      depth--; render_view(u); if (u->page < 0) u->page = 0; if (!(u->mod < 0 && (u->type == V_DESK || u->type == V_SPLIT)) && !view_full(u)) footer(u->page); depth++;
       nhits = 0; v_quick(v);
       break;
     }
     render_view(v);
     if (v->page < 0) v->page = 0;
-    if (!(v->mod < 0 && (v->type == V_DESK || v->type == V_SPLIT))) footer(v->page);
+    if (!(v->mod < 0 && (v->type == V_DESK || v->type == V_SPLIT)) && !view_full(v)) footer(v->page);
     if (v->page == before) break;
   }
   if (escDark) InvertArea(0, 0, SW, SH);
