@@ -1,5 +1,5 @@
-11
+12
 211096
-4d422f05
-Versió 2.3.1: barra d'estat més fidel a la de Kobo (icones grises de traç prim, ben repartides, i bateria nova). Després d'actualitzar, surt i torna a obrir l'Escriptori.
-2.3.1
+1dc630cf
+Versió 2.4: els paquets poden rebre el multitàctil i tornar-se a carregar nets en tancar-los. Nou paquet a la Botiga: Doom (cal copiar un fitxer WAD a la carpeta «Doom» del lector). Després d'actualitzar, surt i torna a obrir l'Escriptori.
+2.4
