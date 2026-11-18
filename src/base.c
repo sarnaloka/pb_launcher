@@ -115,7 +115,7 @@ static void fonts_apply(void) {
   fText = font_open(r, DEFAULTFONT, U * 9 * k / 1000); fSmall = font_open(r, DEFAULTFONT, U * 7 * k / 1000);
   fBig = font_open(b, DEFAULTFONTB, U * 12 * k / 1000); fHuge = font_open(b, DEFAULTFONTB, U * 3);
   fHead = font_open(b, DEFAULTFONTB, U * 14 * (100 + (k - 100) / 2) / 1000); fClock = font_open(b, DEFAULTFONTB, U * 9 / 2);
-  fSbar = font_open(r, DEFAULTFONT, U * 9 / 10);
+  fSbar = font_open(r, DEFAULTFONT, U * 62 / 100);
   for (i = 0; i < 9; i++) if (old[i]) CloseFont(old[i]);
 }
 static void esc_copy_file(const char *a, const char *b) {

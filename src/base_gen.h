@@ -46,22 +46,23 @@ static void si_time_txt(char *t, int sz) {
 }
 /* Barra d'estat estil Kobo (2.3): l'hora a l'esquerra i, a la dreta, només icones del prototip a una mateixa mida
    (SBI, el 24 del viewBox) i amb traç d'1,5: avisos (només si n'hi ha), llum, Wi-Fi, bateria, sincronització i cerca. */
-#define SBI (SB / 2)
-#define SBM ((SB - SBI) / 2)                   /* marge: el mateix a dalt, a baix, a l'esquerra i a la dreta */
-#define SBGAP (SBI * 10 / 24)
-#define SBSW 1.5
+#define SBI (SB * 58 / 100)                    /* mides preses de la barra de Kobo */
+#define SBM U                                  /* marges laterals iguals */
+#define SBGAP (SBI * 65 / 100)                 /* separació entre icones */
+#define SBFG ic_mix(PAL(P_FG), PAL(P_BG), 80)  /* gris fosc, com a Kobo */
+#define SBSW 1.25                              /* traç prim, com a Kobo */
 static int si_time_w(int h) { char t[40]; (void)h; si_time_txt(t, sizeof(t)); SetFont(fSbar, PAL(P_FG)); return StringWidth(t) + U / 2; }
 static void si_time_d(int x, int y, int w, int h, int fg) {
   char t[40]; si_time_txt(t, sizeof(t));
   SetFont(fSbar, fg); DrawTextRect(x, y, w, h, t, ALIGN_LEFT | VALIGN_MIDDLE);
 }
 static int batt_pct(void) { int p = GetBatteryPower(); return p < 0 ? 0 : p > 100 ? 100 : p; }
-/* Bateria (més quadrada des de la 2.4): carregant, el llamp; si no, el farciment (8 unitats com a màxim) segons la càrrega. */
+/* Bateria com la de Kobo: cantonades gairebé rectes, tap ple i farciment una mica més clar i amb marge (14 unitats com a màxim); carregant, el llamp. */
 static void batt_icon(int x, int y, int s, int fg, int bg) {
-  char fl[80]; IcLayer L[2] = { { IC_BATT_H, fg, 0 }, { NULL, fg, 1 } };
-  if (IsCharging()) { L[1].d = IC_BOLT; L[1].fill = 0; }
-  else { double w = 8.0 * batt_pct() / 100; if (w < 0.8) w = 0.8; snprintf(fl, sizeof(fl), "M7 9h%.2fv6h-%.2fz", w, w); L[1].d = fl; }
-  ic_layers(L, 2, x, y, s, SBSW, bg);
+  char fl[80]; IcLayer L[3] = { { IC_BATT_H, fg, 0 }, { IC_BATT_TIP, fg, 1 }, { NULL, ic_mix(fg, bg, 75), 1 } };
+  if (IsCharging()) { L[2].d = IC_BOLT; L[2].fill = 0; L[2].col = fg; }
+  else { double w = 14 * batt_pct() / 100; if (w < 0.8) w = 0.8; snprintf(fl, sizeof(fl), "M4 8.5h%.2fv7h-%.2fz", w, w); L[2].d = fl; }
+  ic_layers(L, 3, x, y, s, SBSW, bg);
 }
 static int si_batt_w(int h) { (void)h; return SBI; }
 static void si_batt_d(int x, int y, int w, int h, int fg) { (void)w; batt_icon(x, y + (h - SBI) / 2, SBI, fg, PAL(P_BG)); }
@@ -124,14 +125,14 @@ static void statusbar(int withHits) {
   for (i = 0; i < NSYS; i++) sbSig[i] = sb_sig(i);
   FillArea(0, 0, SW, SB, PAL(P_BG));
   /* la barra només mostra estat; tota la barra obre el tauler ràpid */
-  tw = si_time_w(SB); sbX[0] = SBM; sbW[0] = tw; si_time_d(SBM, 0, tw, SB, PAL(P_FG));
+  tw = si_time_w(SB); sbX[0] = SBM; sbW[0] = tw; si_time_d(SBM, 0, tw, SB, SBFG);
   sbN = n; sbR0 = SBM + tw + U;
   if (withHits) add_hit(0, 0, SW, SB, A_QUICK, 0);
   for (i = 1; i < n; i++) {
     int w = list[i]->width(SB);
     if (w <= 0) continue;
     if (x - w < sbR0) break;
-    x -= w; sbX[i] = x; sbW[i] = w; list[i]->draw(x, 0, w, SB, PAL(P_FG));
+    x -= w; sbX[i] = x; sbW[i] = w; list[i]->draw(x, 0, w, SB, SBFG);
     x -= SBGAP;
   }
 }
