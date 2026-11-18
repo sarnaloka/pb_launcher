@@ -2,7 +2,7 @@
 tap Paquets
 tap Actualitza el catàleg
 tap Instal·la-ho tot
-xy 1010 237
+xy 1010 149
 echo --- sense avisos: no hi ha campana
 shot av_0.txt
 batt 14

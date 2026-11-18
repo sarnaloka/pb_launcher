@@ -86,19 +86,19 @@ sleep 300
 poll
 sleep 300
 poll
-xy 1010 237
+xy 1010 149
 tapp FTP
-xy 1010 237
+xy 1010 149
 tapp Notes
-xy 1010 237
+xy 1010 149
 tapp Notícies
 tap Actualitza (Wi-Fi)
 xy 600 40
 tap Monitor
 shot m_mon.txt
-xy 62 237
-xy 62 237
-xy 1010 237
+xy 62 149
+xy 62 149
+xy 1010 149
 xy 600 40
 tap Configuració
 tap Feina de fons

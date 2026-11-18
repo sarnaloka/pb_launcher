@@ -46,7 +46,7 @@ static void si_time_txt(char *t, int sz) {
 }
 /* Barra d'estat estil Kobo (2.3): l'hora a l'esquerra i, a la dreta, només icones del prototip a una mateixa mida
    (SBI, el 24 del viewBox) i amb traç d'1,5: avisos (només si n'hi ha), llum, Wi-Fi, bateria, sincronització i cerca. */
-#define SBI (SB / 2)                           /* icones del doble de mida que a la 2.3 */
+#define SBI (SB / 2)
 #define SBM ((SB - SBI) / 2)                   /* marge: el mateix a dalt, a baix, a l'esquerra i a la dreta */
 #define SBGAP (SBI * 10 / 24)
 #define SBSW 1.5

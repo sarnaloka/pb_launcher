@@ -36,6 +36,9 @@ __attribute__((used)) static const char transition_padding[90000] = { 1 };
 static const char *pendMsg;
 static void say(const char *m) { pendMsg = m; }
 
+#ifndef SBK
+#define SBK 9                                   /* alçada de la barra d'estat, en quarts d'U */
+#endif
 #include "base_gen.h"
 #include "ui.h"
 
@@ -112,7 +115,7 @@ static void fonts_apply(void) {
   fText = font_open(r, DEFAULTFONT, U * 9 * k / 1000); fSmall = font_open(r, DEFAULTFONT, U * 7 * k / 1000);
   fBig = font_open(b, DEFAULTFONTB, U * 12 * k / 1000); fHuge = font_open(b, DEFAULTFONTB, U * 3);
   fHead = font_open(b, DEFAULTFONTB, U * 14 * (100 + (k - 100) / 2) / 1000); fClock = font_open(b, DEFAULTFONTB, U * 9 / 2);
-  fSbar = font_open(r, DEFAULTFONT, U * 16 / 10);
+  fSbar = font_open(r, DEFAULTFONT, U * 9 / 10);
   for (i = 0; i < 9; i++) if (old[i]) CloseFont(old[i]);
 }
 static void esc_copy_file(const char *a, const char *b) {
@@ -1886,7 +1889,7 @@ static int handler(int type, int par1, int par2) {
   int i;
   switch (type) {
     case EVT_INIT:
-      SW = ScreenWidth(); SH = ScreenHeight(); U = SW / 27; if (U < 16) U = 16; SB = U * 9 / 2;
+      SW = ScreenWidth(); SH = ScreenHeight(); U = SW / 27; if (U < 16) U = 16; SB = U * SBK / 4;
       SetPanelType(PANEL_DISABLED);
       SH -= PanelHeight();
       scrSB = SB; scrSH = SH; inPane = -1;

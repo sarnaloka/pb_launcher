@@ -4,11 +4,11 @@ tap Lector
 shot l1.txt
 tap La cala dels Esculls
 shot l2.txt
-xy 800 788
-xy 800 788
-xy 800 788
+xy 800 700
+xy 800 700
+xy 800 700
 shot l3.txt
-xy 100 788
+xy 100 700
 shot l4.txt
 xy 536 1400
 shot l5.txt
@@ -21,8 +21,8 @@ tap Continguts
 shot l7.txt
 tap Tramuntana
 shot l8.txt
-xy 800 788
-xy 800 788
+xy 800 700
+xy 800 700
 xy 536 1400
 kbd 50
 tap Anar a un percentatge

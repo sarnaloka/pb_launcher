@@ -2,11 +2,11 @@
 tap Paquets
 tap Actualitza el catàleg
 tap Instal·la-ho tot
-xy 1010 237
+xy 1010 149
 tapp Notes
 kbd Cites del capítol 4
 tap Nova nota
-xy 1010 237
+xy 1010 149
 xy 600 40
 tap Apps obertes
 tap Pantalla dividida

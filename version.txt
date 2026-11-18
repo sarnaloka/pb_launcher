@@ -1,5 +1,5 @@
 10
 211096
-aee2baea
+3aa1a4d4
 Versió 2.3: multitasca. Les apps es queden obertes en segon pla (tauler ràpid › Apps obertes), pantalla dividida amb dues apps, descàrregues en segon pla, monitor de processos i sincronització automàtica d'El temps i Notícies (Configuració › Feina de fons). Barra d'estat nova i tauler ràpid que baixa des de dalt. Després d'actualitzar, surt i torna a obrir l'Escriptori, i actualitza tots els paquets.
 2.3
